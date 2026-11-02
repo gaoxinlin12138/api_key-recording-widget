@@ -57,6 +57,7 @@ async function boot() {
     state.route = parseHash();
     renderRoute({ scrollTop: true });
     startClipboardPolling();
+    setTimeout(() => maybeCheckUpdates(false), 1200);
     window.addEventListener("hashchange", () => {
       if (modalState) closeModal(true);
       closeSidebar();
@@ -1458,6 +1459,7 @@ async function saveSettings(form, button) {
   const data = new FormData(form);
   const payload = {
     clipboard_watch: data.get("clipboard_watch") ? "1" : "0",
+    check_updates: data.get("check_updates") ? "1" : "0",
     low_balance_threshold: data.get("low_balance_threshold")?.toString() || "20",
     low_balance_currency: data.get("low_balance_currency")?.toString() || "CNY",
     default_format: data.get("default_format")?.toString() || "env",
@@ -1476,6 +1478,74 @@ async function saveSettings(form, button) {
       toast(error.message, "err");
     }
   });
+}
+
+// ---------------------------------------------------------------------------
+// update check
+// ---------------------------------------------------------------------------
+async function maybeCheckUpdates(force = false, button = null) {
+  if (!force && state.settings.check_updates === "0") return;
+  const task = async () => {
+    try {
+      const data = await api("/api/update/check", {
+        method: "POST",
+        body: { force },
+      });
+      state.update = data;
+      if (data.ok && data.update_available) {
+        showUpdateDialog(data);
+      } else if (force) {
+        toast(
+          data.ok ? "已经是最新版本。" : data.error || "检查更新失败。",
+          data.ok ? "ok" : "warn"
+        );
+      }
+    } catch (error) {
+      if (force) toast(error.message, "err");
+    }
+  };
+  if (button) await withBusy(button, "检查中…", task);
+  else await task();
+}
+
+function showUpdateDialog(data) {
+  if (modalState) {
+    toast(`发现新版本 ${data.latest}，可在设置页查看。`, "warn");
+    return;
+  }
+  const notes = (data.notes || "").trim();
+  openModal({
+    title: `发现新版本 ${data.latest}`,
+    subtitle: `当前 ${data.current} · 最新 ${data.latest}`,
+    body: `<div class="banner banner-info">${icon(
+      "sparkles",
+      16
+    )}<div>新版本已经发布到 GitHub Releases。更新不会自动下载或安装。</div></div>
+      ${
+        notes
+          ? `<div class="note-block" style="max-height:260px;overflow:auto">${esc(notes)}</div>`
+          : `<p class="muted" style="font-size:12px">打开 Release 页面查看更新内容。</p>`
+      }`,
+    footer: `<div class="foot-left">升级安装不会删除你的 Key 数据。</div>
+      <div class="foot-actions">
+        <button class="btn btn-secondary" data-action="close-modal">稍后</button>
+        <button class="btn btn-primary" data-action="open-update">${icon(
+          "external",
+          15
+        )} 查看更新</button>
+      </div>`,
+    width: "narrow",
+  });
+}
+
+async function openUpdatePage() {
+  const url = state.update?.url;
+  if (!url) {
+    toast("没有可用的更新地址。", "warn");
+    return;
+  }
+  await api("/api/open-url", { method: "POST", body: { url } });
+  closeModal(true);
 }
 
 async function backupData(button) {
@@ -1728,6 +1798,8 @@ document.addEventListener("click", async (event) => {
       "clipboard-accept",
       "clipboard-dismiss",
       "exit-app",
+      "check-updates",
+      "open-update",
     ].includes(action)
   ) {
     event.preventDefault();
@@ -1839,6 +1911,10 @@ document.addEventListener("click", async (event) => {
       } else {
         toast("请直接关闭窗口。", "warn");
       }
+    } else if (action === "check-updates") {
+      await maybeCheckUpdates(true, actionEl);
+    } else if (action === "open-update") {
+      await withBusy(actionEl, "打开中…", openUpdatePage);
     }
   } catch (error) {
     toast(error.message || String(error), "err");

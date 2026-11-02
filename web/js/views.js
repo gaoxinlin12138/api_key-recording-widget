@@ -702,6 +702,7 @@ export function settingsView(state) {
   const app = state.app || {};
   const clipboardOn = settings.clipboard_watch === "1";
   const clipboardAvailable = Boolean(app.clipboard_available);
+  const checkUpdatesOn = settings.check_updates !== "0";
   const format = settings.default_format || "env";
 
   return `
@@ -729,6 +730,19 @@ export function settingsView(state) {
                 <div class="setting-control">
                   <label class="switch" title="剪贴板监听">
                     <input type="checkbox" name="clipboard_watch" ${clipboardOn ? "checked" : ""} ${clipboardAvailable ? "" : "disabled"}>
+                    <span class="switch-track"></span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="setting-row">
+                <div class="setting-main">
+                  <div class="setting-title">启动时检查更新</div>
+                  <div class="setting-desc">每天启动时查询一次 GitHub Releases；只提示新版本，不自动下载或安装。</div>
+                </div>
+                <div class="setting-control">
+                  <label class="switch" title="启动时检查更新">
+                    <input type="checkbox" name="check_updates" ${checkUpdatesOn ? "checked" : ""}>
                     <span class="switch-track"></span>
                   </label>
                 </div>
@@ -859,9 +873,13 @@ export function settingsView(state) {
               ${infoItem("剪贴板监听", clipboardOn ? "已开启" : "已关闭")}
               ${infoItem("界面", app.native ? "桌面窗口" : "浏览器")}
             </div>
+            <button class="btn btn-secondary btn-block" data-action="check-updates" style="margin-top:14px">${icon(
+              "refresh",
+              15
+            )} 检查更新</button>
             ${
               app.native
-                ? `<button class="btn btn-secondary btn-block" data-action="exit-app" style="margin-top:14px">退出程序</button>`
+                ? `<button class="btn btn-secondary btn-block" data-action="exit-app">退出程序</button>`
                 : ""
             }
           </div>

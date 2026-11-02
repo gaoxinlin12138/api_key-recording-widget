@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.0 — 2026-11-02
+
+- Added a startup update check against GitHub Releases.
+- Shows the new version, release notes and a button to open the Release page.
+- The check is metadata-only; the app never downloads or executes an update.
+- Added a "Check for updates" button and a startup-check toggle in Settings.
+- Added Windows file version metadata and a repeatable GitHub Release workflow.
+
 ## 1.0.0 — 2026-11-02
 
 First desktop release.

@@ -123,6 +123,7 @@ CREATE TABLE IF NOT EXISTS settings (
 
 DEFAULT_SETTINGS = {
     "clipboard_watch": "1",
+    "check_updates": "1",
     "low_balance_threshold": "20",
     "low_balance_currency": "CNY",
     "default_format": "env",

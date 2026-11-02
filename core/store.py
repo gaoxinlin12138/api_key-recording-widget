@@ -591,6 +591,7 @@ class Store:
             result = {row["key"]: row["value"] for row in rows}
             for key, value in {
                 "clipboard_watch": "1",
+                "check_updates": "1",
                 "low_balance_threshold": "20",
                 "low_balance_currency": "CNY",
             }.items():
@@ -600,6 +601,7 @@ class Store:
     def update_settings(self, data: dict[str, Any]) -> dict[str, str]:
         allowed = {
             "clipboard_watch",
+            "check_updates",
             "low_balance_threshold",
             "low_balance_currency",
             "default_format",
@@ -610,7 +612,12 @@ class Store:
             for key, value in data.items():
                 if key not in allowed:
                     continue
-                if key in {"clipboard_watch", "include_comments", "direct_key"}:
+                if key in {
+                    "clipboard_watch",
+                    "check_updates",
+                    "include_comments",
+                    "direct_key",
+                }:
                     value = "1" if str(value).lower() in {"1", "true", "on", "yes"} else "0"
                 elif key == "default_format":
                     value = str(value)

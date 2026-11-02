@@ -29,6 +29,7 @@ from .providers import (
 )
 from .snippets import SnippetError, generate_snippet
 from .store import Store, StoreError
+from .updater import GITHUB_REPO, check_for_update
 from .utils import fingerprint, new_id, sanitize_env_prefix, utc_now
 from .version import __app_name__, __version__
 
@@ -61,6 +62,8 @@ class Application:
         self.port = 0
         self._pending: dict[str, dict[str, Any]] = {}
         self._pending_lock = threading.Lock()
+        self._update_cache: dict[str, Any] | None = None
+        self._update_cache_at = 0.0
         self.clipboard = ClipboardWatcher(self._on_clipboard)
         self.settings = self.store.get_settings()
         if self.settings.get("clipboard_watch") == "1":
@@ -224,6 +227,26 @@ class Application:
         self.settings = settings
         self.clipboard.set_enabled(settings.get("clipboard_watch") == "1")
         return settings
+
+    def check_updates(self, force: bool = False) -> dict[str, Any]:
+        now = time.time()
+        if (
+            not force
+            and self._update_cache is not None
+            and now - self._update_cache_at < 6 * 3600
+        ):
+            return self._update_cache
+        try:
+            result = check_for_update(APP_VERSION)
+        except Exception as exc:  # noqa: BLE001
+            result = {
+                "ok": False,
+                "current": APP_VERSION,
+                "error": str(exc),
+            }
+        self._update_cache = result
+        self._update_cache_at = now
+        return result
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -616,6 +639,25 @@ class Handler(BaseHTTPRequestHandler):
 
         if method == "GET" and path == "/api/export":
             self._send_json(200, app.store.export_json())
+            return
+
+        if method == "POST" and path == "/api/update/check":
+            body = self._read_body()
+            self._send_json(200, app.check_updates(force=bool(body.get("force"))))
+            return
+
+        if method == "POST" and path == "/api/open-url":
+            body = self._read_body()
+            target = str(body.get("url") or "").strip()
+            parsed = urlparse(target)
+            if (
+                parsed.scheme != "https"
+                or parsed.netloc != "github.com"
+                or not parsed.path.startswith(f"/{GITHUB_REPO}/releases")
+            ):
+                raise ApiError("只允许打开本项目的 GitHub Release 页面。")
+            webbrowser.open(target)
+            self._send_json(200, {"ok": True})
             return
 
         if method == "POST" and path == "/api/open-data-dir":

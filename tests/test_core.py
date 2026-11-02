@@ -12,6 +12,7 @@ from core.providers import BalanceNotSupported, _request_json, fetch_balance, fe
 from core.security import protect, unprotect
 from core.snippets import SnippetError, generate_snippet
 from core.store import Store, StoreError
+from core.updater import UpdateError, check_for_update, version_tuple
 
 
 PROVIDER_MAP = {provider["id"]: provider for provider in PROVIDERS}
@@ -243,6 +244,37 @@ class StoreTests(unittest.TestCase):
         )
         self.assertEqual(len(added), 1)
         self.assertEqual(added[0]["source"], "fetched")
+
+
+class UpdateTests(unittest.TestCase):
+    def test_version_tuple(self):
+        self.assertEqual(version_tuple("v1.2.3"), (1, 2, 3))
+        self.assertIsNone(version_tuple("1.2"))
+
+    def test_newer_release(self):
+        payload = {
+            "tag_name": "v1.2.0",
+            "html_url": "https://github.com/x/y/releases/tag/v1.2.0",
+            "body": "Changes",
+        }
+        with patch("core.updater._request_release", return_value=payload):
+            result = check_for_update("1.1.0")
+        self.assertTrue(result["update_available"])
+        self.assertEqual(result["latest"], "1.2.0")
+
+    def test_same_release(self):
+        payload = {"tag_name": "v1.1.0", "html_url": "https://example.com"}
+        with patch("core.updater._request_release", return_value=payload):
+            result = check_for_update("1.1.0")
+        self.assertFalse(result["update_available"])
+
+    def test_invalid_release(self):
+        with patch(
+            "core.updater._request_release",
+            return_value={"tag_name": "nightly"},
+        ):
+            with self.assertRaises(UpdateError):
+                check_for_update("1.0.0")
 
 
 class SecurityTests(unittest.TestCase):

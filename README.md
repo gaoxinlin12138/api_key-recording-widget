@@ -88,7 +88,7 @@ build_onefile.bat
 安装包输出：
 
 ```text
-dist\installer\APIKeyLedger-1.0.0-setup.exe
+dist\installer\APIKeyLedger-1.1.0-setup.exe
 ```
 
 安装包会：
@@ -142,9 +142,9 @@ build_installer.bat
 如果不想用 Actions，也可以手动把 `dist\release\` 里的文件上传到一个 GitHub Release：
 
 ```text
-APIKeyLedger-1.0.0-onefile.exe
-APIKeyLedger-1.0.0-portable.zip
-APIKeyLedger-1.0.0-setup.exe
+APIKeyLedger-1.1.0-onefile.exe
+APIKeyLedger-1.1.0-portable.zip
+APIKeyLedger-1.1.0-setup.exe
 SHA256SUMS.txt
 ```
 
