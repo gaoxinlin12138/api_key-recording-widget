@@ -1,0 +1,90 @@
+name: Release Windows desktop app
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version, for example 1.0.0"
+        required: true
+        default: "1.0.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Resolve version
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $version = "${{ inputs.version }}"
+          } else {
+            $version = "${{ github.ref_name }}".TrimStart("v")
+          }
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          python tools/set_version.py $version
+          python tools/generate_version_info.py
+
+      - name: Install build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-build.txt
+
+      - name: Build single-file exe
+        shell: pwsh
+        run: python -m PyInstaller --noconfirm --clean api_key_ledger_onefile.spec
+
+      - name: Build portable folder
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean api_key_ledger.spec
+          Compress-Archive -Path "dist/APIKeyLedger" -DestinationPath "dist/APIKeyLedger-$env:VERSION-portable.zip" -Force
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = Get-ChildItem "C:\Program Files (x86)\Inno Setup*\ISCC.exe" |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (-not $iscc) { throw "ISCC.exe not found" }
+          & $iscc "/DMyAppVersion=$env:VERSION" "installer.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed" }
+
+      - name: Prepare release assets
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "dist/release" | Out-Null
+          Copy-Item "dist/API钥匙簿.exe" "dist/release/APIKeyLedger-$env:VERSION-onefile.exe" -Force
+          Copy-Item "dist/APIKeyLedger-$env:VERSION-portable.zip" "dist/release/" -Force
+          Copy-Item "dist/installer/APIKeyLedger-$env:VERSION-setup.exe" "dist/release/" -Force
+          $files = Get-ChildItem "dist/release" -File
+          $lines = foreach ($file in $files) {
+            $hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($file.Name)"
+          }
+          $lines | Set-Content "dist/release/SHA256SUMS.txt" -Encoding UTF8
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: v${{ env.VERSION }}
+          generate_release_notes: true
+          files: dist/release/*

@@ -1,0 +1,3 @@
+# Build-time dependencies only. The source/browser version needs none.
+pywebview>=6.0
+pyinstaller>=6.0

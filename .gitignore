@@ -1,0 +1,10 @@
+data/
+__pycache__/
+*.pyc
+.venv/
+.idea/
+build/
+dist/
+.acl-recovery/
+*.log
+.DS_Store
