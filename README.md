@@ -42,71 +42,77 @@ python app.py
 python app.py --port 8800 --no-browser
 ```
 
-### 桌面窗口版（打包后使用）
+### 文件夹式安装包（v1.2.0 起）
 
-打包完成后双击：
-
-```text
-dist\APIKeyLedger\API钥匙簿.exe
-```
-
-- 打开独立窗口，不经过默认浏览器
-- 关闭窗口即退出；设置页也有“退出程序”
-- 数据保存在 exe 同目录的 `data\ledger.db`
-- 整个 `dist\APIKeyLedger` 文件夹就是便携版，可以一起拷贝
-- 不要放在 `Program Files`，否则普通账户可能没有写权限
-- 如果端口 8765 被占用，会自动尝试后面的端口
-- 源码版和便携版各用各的 `data`；迁移时把源码目录的 `data\ledger.db` 复制到 exe 同目录的 `data\`
-- **发给别人前，先删除 `dist\APIKeyLedger\data`**，否则会把你的加密 Key 一起带过去
-- `build_exe.bat` 在重新打包前会自动备份并恢复 `dist\APIKeyLedger\data`
-
-未签名的 exe 首次运行可能被 SmartScreen 提示，个人自用点“更多信息 → 仍要运行”即可；要分发给别人，建议做代码签名。
-
-### 单文件版
-
-如果不想带 `_internal` 文件夹，可以双击：
+v1.2.0 开始，Windows 安装包改为**文件夹式安装**：
 
 ```text
-dist\API钥匙簿.exe
+dist\installer\APIKeyLedger-1.2.0-setup.exe
 ```
 
-- 只有一个 exe（约 13 MB），不需要 `_internal`
-- 数据放在 `%LOCALAPPDATA%\ApiKeyLedger\data\ledger.db`
-- exe 可以单独移动；换位置不会丢数据
-- 每次启动会先解压运行库，通常比文件夹版慢几秒
-- 单文件版更容易被 SmartScreen/杀软误报
-- 便携文件夹版和单文件版各自使用独立的 `data`，不要同时往两边录入
-
-重新打包单文件版：
+安装后目录是：
 
 ```text
-build_onefile.bat
+API钥匙簿.exe
+_internal\
+  python313.dll
+  web\
+  webview\
+  ...
+unins000.exe
 ```
 
-### 安装包（最接近普通桌面软件）
+特点：
 
-安装包输出：
-
-```text
-dist\installer\APIKeyLedger-1.1.0-setup.exe
-```
-
-安装包会：
-
-- 安装到 `%LOCALAPPDATA%\Programs\ApiKeyLedger`，不需要管理员权限
+- 启动比单文件版快
+- 杀软误报更少
+- 安装目录看起来像普通桌面软件
+- 安装到上次选择的目录，默认 `%LOCALAPPDATA%\Programs\ApiKeyLedger`
 - 创建开始菜单快捷方式，可选桌面快捷方式
 - 带卸载程序
-- 覆盖升级，不会删除 `%LOCALAPPDATA%\ApiKeyLedger\data`
-- 卸载程序也不会删除用户数据
+- **安装版的数据仍然在** `%LOCALAPPDATA%\ApiKeyLedger\data`
+- 覆盖升级、卸载都不会删除 Key 数据
 
 构建安装包（需要 Inno Setup 6）：
 
 ```text
 winget install JRSoftware.InnoSetup
+build_exe.bat
 build_installer.bat
 ```
 
-前提是已经执行过 `build_onefile.bat`，因为安装包使用单文件 exe 作为载荷。
+安装包使用 `dist\APIKeyLedger` 的文件夹式构建作为载荷，不再使用单文件 exe。
+
+### 便携文件夹版
+
+如果不想安装，可以直接使用：
+
+```text
+dist\APIKeyLedger\API钥匙簿.exe
+```
+
+- 必须和同目录的 `_internal` 文件夹一起使用
+- 数据保存在 exe 同目录的 `data\ledger.db`
+- 整个 `dist\APIKeyLedger` 文件夹可以一起拷贝
+- 不要放在 `Program Files`，否则普通账户可能没有写权限
+- **发给别人前，先删除 `dist\APIKeyLedger\data`**
+- `build_exe.bat` 在重新打包前会自动备份并恢复 `dist\APIKeyLedger\data`
+
+### 单文件版（旧版本兼容）
+
+v1.1.0 及之前发布过单文件版。v1.2.0 起不再作为正式 Release 资产发布，但源码仍可构建：
+
+```text
+build_onefile.bat
+```
+
+单文件版：
+
+- 只有一个 exe，数据在 `%LOCALAPPDATA%\ApiKeyLedger\data`
+- 启动比文件夹版慢，容易被 SmartScreen/杀软误报
+- 适合临时便携使用，不推荐作为主安装方式
+
+未签名的 exe 首次运行可能被 SmartScreen 提示，个人自用点“更多信息 → 仍要运行”即可；要分发给别人，建议做代码签名。
 
 ### 发布新版本
 
@@ -116,35 +122,35 @@ build_installer.bat
 
 1. 修改版本号：
    ```bash
-   python tools/set_version.py 1.1.0
+   python tools/set_version.py 1.2.0
    ```
 2. 更新 `CHANGELOG.md`
 3. 本地构建：
    ```text
-   build_onefile.bat
+   build_exe.bat
    build_installer.bat
    ```
 4. 提交并打 tag：
    ```bash
    git add .
-   git commit -m "release v1.1.0"
-   git tag v1.1.0
+   git commit -m "release v1.2.0"
+   git tag v1.2.0
    git push origin main --tags
    ```
 5. GitHub Actions 会自动：
-   - 构建单文件版和便携文件夹版
+   - 构建文件夹式应用
+   - 构建便携 ZIP
    - 构建安装包
    - 生成 SHA256 校验文件
    - 发布到 GitHub Releases
 
-工作流文件：`.github/workflows/release.yml`。用户从 Releases 下载 `setup.exe` 或单文件版即可；数据仍然在本机。
+工作流文件：`.github/workflows/release.yml`。用户从 Releases 下载 `setup.exe` 或便携 ZIP 即可；数据仍然在本机。
 
 如果不想用 Actions，也可以手动把 `dist\release\` 里的文件上传到一个 GitHub Release：
 
 ```text
-APIKeyLedger-1.1.0-onefile.exe
-APIKeyLedger-1.1.0-portable.zip
-APIKeyLedger-1.1.0-setup.exe
+APIKeyLedger-1.2.0-portable.zip
+APIKeyLedger-1.2.0-setup.exe
 SHA256SUMS.txt
 ```
 
@@ -153,9 +159,9 @@ SHA256SUMS.txt
 需要 Python 3.11+。入口：
 
 ```text
-build_exe.bat        # 便携文件夹版，输出 dist\APIKeyLedger\
-build_onefile.bat    # 单文件版，输出 dist\API钥匙簿.exe
-build_installer.bat  # 安装包，输出 dist\installer\APIKeyLedger-*-setup.exe
+build_exe.bat        # 文件夹式构建，输出 dist\APIKeyLedger\
+build_installer.bat  # 文件夹式安装包，输出 dist\installer\APIKeyLedger-*-setup.exe
+build_onefile.bat    # 可选，旧单文件版，输出 dist\API钥匙簿.exe
 ```
 
 脚本会：
@@ -403,9 +409,10 @@ tests/
   test_core.py          解析、片段、存储、加密、适配器测试
 docs/                   截图
 data/                   运行时数据（已 gitignore）
-api_key_ledger.spec         便携文件夹版 PyInstaller 配置
-api_key_ledger_onefile.spec 单文件版 PyInstaller 配置
-installer.iss               Inno Setup 安装包配置
+api_key_ledger.spec         文件夹式 PyInstaller 配置
+api_key_ledger_onefile.spec 旧单文件版 PyInstaller 配置
+installer.iss               Inno Setup 文件夹式安装包配置
+installed.marker            安装版标记（让数据固定走 AppData）
 build_exe.bat               便携文件夹版打包入口
 build_exe.ps1               便携文件夹版打包逻辑（备份/恢复数据）
 build_onefile.bat           单文件版打包入口

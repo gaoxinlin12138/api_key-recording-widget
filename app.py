@@ -47,17 +47,23 @@ def _is_onefile() -> bool:
     return Path(meipass).resolve().parent != Path(sys.executable).resolve().parent
 
 
+def _local_vault_dir() -> Path:
+    local = os.environ.get("LOCALAPPDATA")
+    root = Path(local) if local else Path.home() / "AppData" / "Local"
+    return root / "ApiKeyLedger" / "data"
+
+
 def _data_dir() -> Path:
     override = os.environ.get("API_KEY_LEDGER_DATA_DIR")
     if override:
         return Path(override).expanduser()
     if _is_frozen():
-        if _is_onefile():
-            # A onefile exe can be moved on its own; keep the vault outside it.
-            local = os.environ.get("LOCALAPPDATA")
-            root = Path(local) if local else Path.home() / "AppData" / "Local"
-            return root / "ApiKeyLedger" / "data"
-        return Path(sys.executable).resolve().parent / "data"
+        exe_dir = Path(sys.executable).resolve().parent
+        # Installed builds (including folder installs) keep data outside the
+        # program folder so upgrades/uninstalls cannot remove it.
+        if _is_onefile() or (exe_dir / "installed.marker").exists():
+            return _local_vault_dir()
+        return exe_dir / "data"
     return Path(__file__).resolve().parent / "data"
 
 

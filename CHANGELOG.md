@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.0 — 2026-11-02
+
+- Switched the Windows installer to a folder-style deployment (exe + `_internal`).
+- Faster startup and fewer antivirus false positives than the onefile installer.
+- Installed builds keep the vault in `%LOCALAPPDATA%\ApiKeyLedger\data`.
+- The portable ZIP keeps its data beside the exe.
+- Existing 1.0.0 / 1.1.0 releases remain available; upgrade with the 1.2.0 setup.
+- Future releases are published as setup + portable ZIP (no new onefile asset).
+
 ## 1.1.0 — 2026-11-02
 
 - Added a startup update check against GitHub Releases.

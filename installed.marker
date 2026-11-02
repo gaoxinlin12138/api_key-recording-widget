@@ -1,0 +1,2 @@
+This marker tells API Key Ledger that it was installed by the Windows installer.
+The vault is stored in %LOCALAPPDATA%\ApiKeyLedger\data.

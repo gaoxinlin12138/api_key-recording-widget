@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version, for example 1.0.0"
+        description: "Version, for example 1.2.0"
         required: true
-        default: "1.0.0"
+        default: "1.2.0"
 
 permissions:
   contents: write
@@ -44,11 +44,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-build.txt
 
-      - name: Build single-file exe
-        shell: pwsh
-        run: python -m PyInstaller --noconfirm --clean api_key_ledger_onefile.spec
-
-      - name: Build portable folder
+      - name: Build folder-style app
         shell: pwsh
         run: |
           python -m PyInstaller --noconfirm --clean api_key_ledger.spec
@@ -71,7 +67,6 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "dist/release" | Out-Null
-          Copy-Item "dist/API钥匙簿.exe" "dist/release/APIKeyLedger-$env:VERSION-onefile.exe" -Force
           Copy-Item "dist/APIKeyLedger-$env:VERSION-portable.zip" "dist/release/" -Force
           Copy-Item "dist/installer/APIKeyLedger-$env:VERSION-setup.exe" "dist/release/" -Force
           $files = Get-ChildItem "dist/release" -File

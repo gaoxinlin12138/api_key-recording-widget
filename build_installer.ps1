@@ -18,10 +18,11 @@ if (-not $iscc) {
     exit 1
 }
 
-$onefile = Join-Path $PSScriptRoot "dist\API钥匙簿.exe"
-if (-not (Test-Path $onefile)) {
-    Write-Host "dist\API钥匙簿.exe was not found."
-    Write-Host "Run build_onefile.bat first."
+$appDir = Join-Path $PSScriptRoot "dist\APIKeyLedger"
+$appExe = Join-Path $appDir "API钥匙簿.exe"
+if (-not (Test-Path $appExe) -or -not (Test-Path (Join-Path $appDir "_internal"))) {
+    Write-Host "Folder build was not found: dist\APIKeyLedger"
+    Write-Host "Run build_exe.bat first."
     Read-Host "Press Enter to close"
     exit 1
 }
@@ -43,10 +44,8 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $setup = Join-Path $PSScriptRoot "dist\installer\APIKeyLedger-$version-setup.exe"
-$exeHash = (Get-FileHash -LiteralPath $onefile -Algorithm SHA256).Hash.ToLower()
 $setupHash = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLower()
 $sums = @(
-    "$exeHash  API钥匙簿.exe",
     "$setupHash  APIKeyLedger-$version-setup.exe"
 )
 $sums | Set-Content -Path (Join-Path $PSScriptRoot "dist\installer\SHA256SUMS.txt") -Encoding UTF8
@@ -56,6 +55,6 @@ Write-Host "Installer complete:"
 Write-Host "  $setup"
 Write-Host "  dist\installer\SHA256SUMS.txt"
 Write-Host ""
-Write-Host "The installer uses %LOCALAPPDATA%\Programs\ApiKeyLedger."
+Write-Host "The installer uses the folder-style onedir build."
 Write-Host "Vault data stays in %LOCALAPPDATA%\ApiKeyLedger\data."
 Read-Host "Press Enter to close"

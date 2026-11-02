@@ -2,7 +2,7 @@
 ; Build with build_installer.bat (requires Inno Setup 6).
 
 #ifndef MyAppVersion
-  #define MyAppVersion "1.1.0"
+  #define MyAppVersion "1.2.0"
 #endif
 
 #define MyAppName "API 钥匙簿"
@@ -43,7 +43,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "dist\API钥匙簿.exe"; DestDir: "{app}"; Flags: ignoreversion
+; Folder-style install: the onedir build, without a user data directory.
+Source: "dist\APIKeyLedger\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "data\*"
+Source: "installed.marker"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
