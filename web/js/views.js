@@ -1,4 +1,5 @@
 import {
+  BACKGROUND_PRESETS,
   CAPABILITY_LABELS,
   actionIcon,
   actionLabel,
@@ -71,7 +72,7 @@ function lowBalanceKeys(state) {
   );
 }
 
-export function dashboardView(state) {
+function dashboardViewLegacy(state) {
   const stats = state.stats || {};
   const keys = state.keys || [];
   const lowKeys = lowBalanceKeys(state);
@@ -83,7 +84,7 @@ export function dashboardView(state) {
     {
       label: "Key 总数",
       value: stats.total_keys ?? 0,
-      foot: "已加密保存在本机",
+      foot: "明文保存在本机",
       iconName: "key",
       tone: "",
     },
@@ -318,9 +319,14 @@ export function keysView(state, filteredKeys, activeProviderId) {
         <td class="balance-cell">${balanceHtml}</td>
         <td class="date-cell">${key.last_copied_at ? esc(timeAgo(key.last_copied_at)) : "—"}</td>
         <td class="actions-cell">
-          <button class="btn btn-secondary btn-sm" data-action="quick-copy" data-id="${esc(
-            key.id
-          )}" title="复制这个 Key 的 .env">${icon("copy", 13)} .env</button>
+          <div class="row-actions">
+            <button class="btn btn-secondary btn-sm" data-action="quick-copy" data-id="${esc(
+              key.id
+            )}" title="复制这个 Key 的 .env">${icon("copy", 13)} .env</button>
+            <button class="btn btn-danger btn-sm btn-icon" data-action="delete-key" data-id="${esc(
+              key.id
+            )}" title="删除这个 Key" aria-label="删除这个 Key">${icon("trash", 13)}</button>
+          </div>
         </td>
       </tr>`;
     })
@@ -352,12 +358,6 @@ export function keysView(state, filteredKeys, activeProviderId) {
         <div class="eyebrow">KEYS</div>
         <h1 class="page-title">${esc(title)}</h1>
         <p class="page-sub">${esc(sub)}</p>
-      </div>
-      <div class="page-actions">
-        <button class="btn ${filteredKeys.length ? "btn-primary" : "btn-secondary"}" data-action="add-key">${icon(
-          "plus",
-          15
-        )} 添加 Key</button>
       </div>
     </div>
     ${providerFilterChips(state, activeProviderId)}
@@ -516,9 +516,9 @@ function snippetCard(key, studio) {
     "copy",
     15
   )} 复制片段</button>
-      <span class="faint" style="font-size:10.5px">${format === "env" ? "复制时才解密并写入真实 Key" : "默认使用环境变量，不把 Key 写进代码"}</span>
+      <span class="faint" style="font-size:10.5px">${format === "env" ? "复制时才写入真实 Key" : "默认使用环境变量，不把 Key 写进代码"}</span>
     </div>
-    <div class="code-note">${icon("info", 12)} 预览里只会显示打码后的 Key；点“复制片段”才会完成一次解密，并记入使用时间。</div>
+    <div class="code-note">${icon("info", 12)} 预览里只会显示打码后的 Key；点“复制片段”才会读取真实 Key，并记入使用时间。</div>
   </section>`;
 }
 
@@ -655,7 +655,6 @@ export function detailView(state, key, studio) {
               ${infoItem("创建时间", esc(formatDate(key.created_at)))}
               ${infoItem("最后复制", key.last_copied_at ? esc(formatDate(key.last_copied_at)) : "—")}
               ${infoItem("最后使用", key.last_used_at ? esc(formatDate(key.last_used_at)) : "—")}
-              ${infoItem("过期时间", key.expires_at ? esc(formatDate(key.expires_at, { time: false })) : "未设置")}
             </div>
             <div class="card-divider"></div>
             <div class="info-label">备注</div>
@@ -674,20 +673,6 @@ export function detailView(state, key, studio) {
         </section>
 
         ${balanceCard(key, state)}
-
-        <section class="card">
-          <div class="card-body">
-            <div class="danger-zone" style="border-top:0;padding-top:0;margin-top:0">
-              <div>
-                <div class="setting-title">删除这个 Key</div>
-                <div class="setting-desc">会同时删除余额记录、模型关联和使用时间线，无法恢复。</div>
-              </div>
-              <button class="btn btn-danger btn-sm" data-action="delete-key" data-id="${esc(
-                key.id
-              )}">${icon("trash", 13)} 删除 Key</button>
-            </div>
-          </div>
-        </section>
       </div>
 
       <div class="detail-side">
@@ -697,7 +682,7 @@ export function detailView(state, key, studio) {
   `;
 }
 
-export function settingsView(state) {
+function settingsViewLegacy(state) {
   const settings = state.settings || {};
   const app = state.app || {};
   const clipboardOn = settings.clipboard_watch === "1";
@@ -830,10 +815,10 @@ export function settingsView(state) {
           </div>
           <div class="card-body">
             <ul class="security-list">
-              <li>${icon("shield", 15)} Key 使用 Windows 当前账户自动加密，不需要设置主密码。</li>
+              <li>${icon("shield", 15)} Key 以明文保存在本机，不再绑定系统账户；请限制数据目录访问权限。</li>
               <li>${icon("server", 15)} 服务只监听 127.0.0.1，不对外网开放。</li>
-              <li>${icon("database", 15)} 数据保存在本机 SQLite，不会上传；换电脑后旧库无法解密，需要重新录入或导出。</li>
-              <li>${icon("eye-off", 15)} 列表和预览只显示打码后的 Key，复制或查看时才解密。</li>
+              <li>${icon("database", 15)} 数据保存在本机 SQLite，不会上传；备份包含明文 Key，请妥善保管。</li>
+              <li>${icon("eye-off", 15)} 列表和预览只显示打码后的 Key，复制或查看时才读取。</li>
             </ul>
           </div>
         </section>
@@ -858,7 +843,7 @@ export function settingsView(state) {
               "folder",
               15
             )} 打开数据文件夹</button>
-            <p class="field-hint">备份文件里的 Key 仍是 Windows 加密状态，只能在同一台电脑、同一个 Windows 账户下恢复。</p>
+            <p class="field-hint">备份文件包含明文 Key，请妥善保管；可在其他电脑恢复。</p>
           </div>
         </section>
 
@@ -886,5 +871,478 @@ export function settingsView(state) {
         </section>
       </div>
     </div>
+  `;
+}
+
+export function settingsView(state) {
+  const settings = state.settings || {};
+  const app = state.app || {};
+  const active = state.settingsTab || "preferences";
+  const clipboardOn = settings.clipboard_watch === "1";
+  const clipboardAvailable = Boolean(app.clipboard_available);
+  const checkUpdatesOn = settings.check_updates !== "0";
+  const autoRefreshOn = settings.auto_refresh_balance !== "0";
+  const format = settings.default_format || "env";
+  const navItems = [
+    ["preferences", "settings", "偏好设置", "监听、刷新与片段默认值"],
+    ["appearance", "image", "外观背景", "背景与液态玻璃"],
+    ["data", "database", "数据与备份", "备份、导出与打开目录"],
+    ["security", "shield", "安全说明", "本地存储与安全边界"],
+    ["about", "info", "关于", "版本、更新与退出"],
+  ];
+
+  return `
+    <div class="page-head">
+      <div class="page-title-wrap">
+        <div class="eyebrow">SETTINGS</div>
+        <h1 class="page-title">设置</h1>
+        <p class="page-sub">调整本地行为、备份数据，或查看这个工具的安全边界。</p>
+      </div>
+    </div>
+
+    <div class="settings-layout">
+      <aside class="settings-nav card">
+        <div class="settings-nav-title">偏好与数据</div>
+        <div class="settings-nav-list">
+          ${navItems
+            .map(
+              ([id, iconName, title, desc]) => `<button class="settings-nav-item ${
+                active === id ? "active" : ""
+              }" data-action="settings-tab" data-id="${id}" data-settings-tab="${id}">
+                <span class="settings-nav-icon">${icon(iconName, 16)}</span>
+                <span class="settings-nav-copy"><strong>${title}</strong><small>${desc}</small></span>
+              </button>`
+            )
+            .join("")}
+        </div>
+        <div class="settings-nav-foot">${icon("shield", 13)} 数据只保存在本机</div>
+      </aside>
+
+      <section class="settings-panel card">
+        <div class="settings-panel-section ${active === "preferences" ? "active" : ""}" data-settings-panel="preferences">
+          <div class="settings-section-head">
+            <div><h2>偏好设置</h2><p>这些选项只影响本机行为，不会上传。</p></div>
+          </div>
+          <form id="settings-form">
+            <div class="setting-row">
+              <div class="setting-main">
+                <div class="setting-title">剪贴板监听</div>
+                <div class="setting-desc">复制到像 API Key 的文本时，弹窗询问是否入库。只识别 Key 或 .env，不保存其他剪贴板内容。${clipboardAvailable ? "" : "当前系统不支持。"}</div>
+              </div>
+              <div class="setting-control">
+                <label class="switch" title="剪贴板监听">
+                  <input type="checkbox" name="clipboard_watch" ${clipboardOn ? "checked" : ""} ${clipboardAvailable ? "" : "disabled"}>
+                  <span class="switch-track"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-main">
+                <div class="setting-title">启动时检查更新</div>
+                <div class="setting-desc">每天启动时查询一次 GitHub Releases；只提示新版本，不自动下载或安装。</div>
+              </div>
+              <div class="setting-control">
+                <label class="switch" title="启动时检查更新">
+                  <input type="checkbox" name="check_updates" ${checkUpdatesOn ? "checked" : ""}>
+                  <span class="switch-track"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-main">
+                <div class="setting-title">自动刷新余额</div>
+                <div class="setting-desc">支持自动查询的平台（DeepSeek、Kimi）每 15 分钟刷新一次；其他平台仍用手动记录。</div>
+              </div>
+              <div class="setting-control">
+                <label class="switch" title="自动刷新余额">
+                  <input type="checkbox" name="auto_refresh_balance" ${autoRefreshOn ? "checked" : ""}>
+                  <span class="switch-track"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-main">
+                <div class="setting-title">低余额提醒线</div>
+                <div class="setting-desc">余额低于这个数字时，仪表盘会提醒。只对已经记录过余额的 Key 生效。</div>
+              </div>
+              <div class="setting-control setting-inline">
+                <select class="select" name="low_balance_currency" style="width:86px" aria-label="提醒币种">
+                  ${["CNY", "USD", "EUR"]
+                    .map(
+                      (item) =>
+                        `<option value="${item}" ${
+                          (settings.low_balance_currency || "CNY") === item ? "selected" : ""
+                        }>${item}</option>`
+                    )
+                    .join("")}
+                </select>
+                <input class="input" type="number" min="0" step="1" name="low_balance_threshold" style="width:104px" value="${esc(
+                  settings.low_balance_threshold || "20"
+                )}">
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-main">
+                <div class="setting-title">默认片段格式</div>
+                <div class="setting-desc">打开 Key 详情时优先展示的格式。</div>
+              </div>
+              <div class="setting-control" style="width:132px">
+                <select class="select" name="default_format">
+                  ${FORMAT_ORDER.map(
+                    (item) =>
+                      `<option value="${item}" ${format === item ? "selected" : ""}>${
+                        FORMAT_LABELS[item]
+                      }</option>`
+                  ).join("")}
+                </select>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-main">
+                <div class="setting-title">代码片段默认带注释</div>
+                <div class="setting-desc">生成 Python / cURL / JavaScript 时附带安装提示和模型说明。</div>
+              </div>
+              <div class="setting-control">
+                <label class="switch" title="默认带注释">
+                  <input type="checkbox" name="include_comments" ${settings.include_comments === "1" ? "checked" : ""}>
+                  <span class="switch-track"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-main">
+                <div class="setting-title">代码里直接写入 Key</div>
+                <div class="setting-desc">默认关闭，代码使用环境变量读取 Key。开启后复制代码会把真实 Key 写进代码，适合一次性脚本。</div>
+              </div>
+              <div class="setting-control">
+                <label class="switch" title="代码里直接写入 Key">
+                  <input type="checkbox" name="direct_key" ${settings.direct_key === "1" ? "checked" : ""}>
+                  <span class="switch-track"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="settings-actions">
+              <button class="btn btn-primary" type="submit" data-action="save-settings">${icon("check", 15)} 保存设置</button>
+              <span class="faint">保存后立即生效</span>
+            </div>
+          </form>
+        </div>
+
+        <div class="settings-panel-section ${active === "appearance" ? "active" : ""}" data-settings-panel="appearance">
+          <div class="settings-section-head">
+            <div><h2>外观背景</h2><p>背景只影响界面观感，不会改变你的 Key 和余额数据。</p></div>
+          </div>
+          <div class="appearance-block">
+            <div class="appearance-label">背景预设</div>
+            <div class="background-grid">
+              ${BACKGROUND_PRESETS.map(
+                (preset) => `<button class="background-card ${
+                  (settings.background_style || "aurora") === preset.id ? "active" : ""
+                }" data-action="set-background" data-id="${preset.id}">
+                  <span class="background-swatch" style="background:linear-gradient(135deg, ${preset.colors.join(
+                    ", "
+                  )})"></span>
+                  <span class="background-card-copy"><strong>${preset.name}</strong><small>${preset.hint}</small></span>
+                  ${icon("check", 14, "background-check")}
+                </button>`
+              ).join("")}
+              <button class="background-card ${
+                settings.background_style === "custom" ? "active" : ""
+              }" data-action="set-background" data-id="custom">
+                <span class="background-swatch background-swatch-custom" ${
+                  settings.background_style === "custom"
+                    ? `style="background-image:url('/api/background/image?v=${esc(
+                        app.background_version || "0"
+                      )}')"`
+                    : ""
+                }>${settings.background_style === "custom" ? "" : icon("image", 20)}</span>
+                <span class="background-card-copy"><strong>自定义图片</strong><small>PNG · JPEG · WebP</small></span>
+                ${icon("check", 14, "background-check")}
+              </button>
+            </div>
+
+            <div class="appearance-upload">
+              <label class="btn btn-secondary btn-sm">
+                ${icon("upload", 14)} 上传背景图片
+                <input id="background-file" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+              </label>
+              <button class="btn btn-ghost btn-sm" data-action="reset-background">${icon(
+                "refresh",
+                14
+              )} 恢复默认</button>
+              <span class="faint">图片会保存在本机数据目录，不超过 6 MB。</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-panel-section ${active === "data" ? "active" : ""}" data-settings-panel="data">
+          <div class="settings-section-head">
+            <div><h2>数据与备份</h2><p>建议定期下载一份数据库备份。</p></div>
+          </div>
+          <div class="banner banner-warn">${icon("alert", 15)}<div><strong>当前为明文保存模式。</strong>数据库和备份中的 Key 不再加密，任何能访问这些文件的人都可以读取。</div></div>
+          <div class="settings-block">
+            <div class="data-path">${icon("database", 14)} ${esc(app.data_path || "data")}</div>
+            <div class="settings-action-grid">
+              <button class="btn btn-secondary" data-action="backup">${icon("download", 15)} 下载数据库备份</button>
+              <button class="btn btn-secondary" data-action="export">${icon("external", 15)} 导出 JSON（不含 Key）</button>
+              <label class="btn btn-secondary file-btn">${icon("upload", 15)} 恢复数据库备份
+                <input id="restore-file" type="file" accept=".db,application/octet-stream,application/x-sqlite3" hidden>
+              </label>
+              <button class="btn btn-ghost" data-action="open-data-dir">${icon("folder", 15)} 打开数据文件夹</button>
+            </div>
+            <p class="field-hint">恢复会覆盖当前数据库，并先自动备份当前库。备份包含明文 Key，请妥善保管。</p>
+          </div>
+        </div>
+
+        <div class="settings-panel-section ${active === "security" ? "active" : ""}" data-settings-panel="security">
+          <div class="settings-section-head">
+            <div><h2>安全说明</h2><p>这是一个本机工具，不是云服务。</p></div>
+          </div>
+          <ul class="security-list">
+            <li>${icon("shield", 15)} Key 以明文保存在本机，不再绑定系统账户；请限制数据目录访问权限。</li>
+            <li>${icon("server", 15)} 服务只监听 127.0.0.1，不对外网开放。</li>
+            <li>${icon("database", 15)} 数据保存在本机 SQLite，不会上传；备份包含明文 Key，请妥善保管。</li>
+            <li>${icon("eye-off", 15)} 列表和预览只显示打码后的 Key，复制或查看时才读取。</li>
+          </ul>
+        </div>
+
+        <div class="settings-panel-section ${active === "about" ? "active" : ""}" data-settings-panel="about">
+          <div class="settings-section-head">
+            <div><h2>关于</h2><p>${esc(app.name || "API 钥匙簿")}</p></div>
+          </div>
+          <div class="info-grid settings-info">
+            ${infoItem("版本", esc(app.version || "1.2.0"))}
+            ${infoItem("数据目录", `<span class="mono" style="font-size:11px">${esc(app.data_path || "")}</span>`)}
+            ${infoItem("剪贴板监听", clipboardOn ? "已开启" : "已关闭")}
+            ${infoItem("界面", app.native ? "桌面窗口" : "浏览器")}
+          </div>
+          <div class="settings-actions">
+            <button class="btn btn-secondary" data-action="check-updates">${icon("refresh", 15)} 检查更新</button>
+            ${
+              app.native
+                ? `<button class="btn btn-secondary" data-action="exit-app">退出程序</button>`
+                : ""
+            }
+          </div>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function dashboardViewLegacy2(state) {
+  const stats = state.stats || {};
+  const providers = state.providers || [];
+  const lowKeys = lowBalanceKeys(state);
+  const threshold = Number(state.settings?.low_balance_threshold ?? 20);
+  const thresholdCurrency = state.settings?.low_balance_currency || "CNY";
+  const recent = (stats.recent_usage || []).slice(0, 6);
+
+  const metrics = [
+    ["Key 总数", stats.total_keys ?? 0, "明文保存在本机", "key"],
+    ["使用中的平台", stats.providers_with_keys ?? 0, `共 ${providers.length} 个平台模板`, "server"],
+    ["本月新增", stats.month_new ?? 0, "按本地时间统计", "sparkles"],
+    ["待关注余额", stats.low_balance ?? 0, `低于 ${formatMoney(threshold, thresholdCurrency)}`, "wallet", stats.low_balance ? "warn" : ""],
+  ];
+
+  const metricHtml = metrics
+    .map(
+      ([label, value, foot, iconName, tone]) => `<div class="overview-metric ${tone || ""}">
+        <div class="overview-metric-top"><span>${esc(label)}</span>${icon(iconName, 15)}</div>
+        <strong>${formatNumber(value)}</strong>
+        <small>${esc(foot)}</small>
+      </div>`
+    )
+    .join("");
+
+  const alertHtml = lowKeys.length
+    ? `<div class="alert-strip">
+        ${icon("alert", 15)}
+        <div><strong>${lowKeys.length} 个 Key 的余额低于提醒线。</strong>${esc(
+          lowKeys.slice(0, 3).map((key) => key.label).join("、")
+        )}${lowKeys.length > 3 ? " 等" : ""}，记得补充或切换 Key。</div>
+      </div>`
+    : "";
+
+  const platformRows = providers
+    .map(
+      (provider) => `<button class="platform-row" data-action="go-platform" data-id="${esc(
+        provider.id
+      )}">
+        ${providerAvatar(provider)}
+        <span class="platform-row-main">
+          <strong>${esc(provider.name)}</strong>
+          <small>${esc(provider.description || "")}</small>
+        </span>
+        <span class="platform-row-stats">
+          <b>${provider.key_count}</b><small>Key</small>
+          <b>${provider.model_count}</b><small>模型</small>
+        </span>
+        ${icon("chevron-right", 14)}
+      </button>`
+    )
+    .join("");
+
+  const recentHtml = recent.length
+    ? recent
+        .map(
+          (item) => `<div class="recent-row">
+            <div class="recent-dot">${icon(actionIcon(item.action), 14)}</div>
+            <div class="recent-main">
+              <div class="recent-title">${esc(actionLabel(item.action))} · ${esc(
+            item.key_label || "已删除的 Key"
+          )}</div>
+              <div class="recent-meta">${esc(item.provider_name || "本地记录")}</div>
+            </div>
+            <div class="recent-time">${esc(timeAgo(item.created_at))}</div>
+          </div>`
+        )
+        .join("")
+    : emptyState({
+        iconName: "clock",
+        title: "还没有使用记录",
+        text: "复制一次片段或更新一次余额，这里就会出现时间线。",
+      });
+
+  return `
+    <div class="page-head compact">
+      <div class="page-title-wrap">
+        <div class="eyebrow">API LEDGER</div>
+        <h1 class="page-title">把散落的 Key，收进一个地方。</h1>
+        <p class="page-sub">记录平台、用途和模型能力；需要调用时，直接复制对应平台、对应模型的代码片段。</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-secondary" data-action="add-key">${icon("plus", 15)} 添加 Key</button>
+      </div>
+    </div>
+
+    ${alertHtml}
+    <section class="overview-strip">${metricHtml}</section>
+
+    <div class="dashboard-columns">
+      <div class="stack">
+        <section class="card quick-import">
+          <div class="card-head">
+            <div>
+              <div class="card-title">快速导入</div>
+              <div class="card-sub">粘贴 Key、.env、JSON 或 curl，自动拆出平台、地址和模型。</div>
+            </div>
+            <span class="badge badge-brand">${icon("clipboard", 12)} 粘贴识别</span>
+          </div>
+          <div class="card-body">
+            <div class="paste-wrap">
+              <textarea id="quick-paste" class="paste-area" spellcheck="false" placeholder="例如：&#10;LLM_WIKI_API_BASE=https://api.deepseek.com&#10;LLM_WIKI_API_KEY=sk-...&#10;LLM_WIKI_MODEL=deepseek-chat"></textarea>
+              <div class="quick-error" id="quick-error"></div>
+              <div class="parse-row">
+                <div class="parse-hint">${icon("shield", 13)} 只在本机解析，不会上传</div>
+                <button class="btn btn-primary btn-sm" data-action="quick-parse">${icon("sparkles", 14)} 识别并添加</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <div><div class="card-title">平台</div><div class="card-sub">点一个平台，查看它下面的 Key。</div></div>
+            <span class="badge badge-quiet">${providers.length} 个</span>
+          </div>
+          <div class="card-body platform-list">${platformRows}</div>
+        </section>
+      </div>
+
+      <div class="stack">
+        <section class="card">
+          <div class="card-head">
+            <div><div class="card-title">最近使用</div><div class="card-sub">复制、查看、余额更新都会留痕。</div></div>
+          </div>
+          <div class="card-body"><div class="recent-list">${recentHtml}</div></div>
+        </section>
+        <section class="card quiet-card">
+          <div class="card-body">
+            <div class="quiet-tip">${icon("sparkles", 16)}<div><strong>小提示</strong><p>同一个平台可以放多个 Key；在详情页为每个 Key 勾选它真正能用的模型。</p></div></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  `;
+}
+
+export function dashboardView(state) {
+  const stats = state.stats || {};
+  const providers = state.providers || [];
+  const lowKeys = lowBalanceKeys(state);
+  const threshold = Number(state.settings?.low_balance_threshold ?? 20);
+  const thresholdCurrency = state.settings?.low_balance_currency || "CNY";
+
+  const metrics = [
+    ["Key 总数", stats.total_keys ?? 0, "明文保存在本机", "key"],
+    ["使用中的平台", stats.providers_with_keys ?? 0, `共 ${providers.length} 个平台模板`, "server"],
+    ["本月新增", stats.month_new ?? 0, "按本地时间统计", "sparkles"],
+    ["待关注余额", stats.low_balance ?? 0, `低于 ${formatMoney(threshold, thresholdCurrency)}`, "wallet", stats.low_balance ? "warn" : ""],
+  ];
+
+  const metricHtml = metrics
+    .map(
+      ([label, value, foot, iconName, tone]) => `<div class="overview-metric ${tone || ""}">
+        <div class="overview-metric-top"><span>${esc(label)}</span>${icon(iconName, 15)}</div>
+        <strong>${formatNumber(value)}</strong>
+        <small>${esc(foot)}</small>
+      </div>`
+    )
+    .join("");
+
+  const alertHtml = lowKeys.length
+    ? `<div class="attention-line">
+        ${icon("alert", 15)}
+        <span><strong>${lowKeys.length} 个 Key</strong> 余额低于提醒线：${esc(
+          lowKeys.slice(0, 3).map((key) => key.label).join("、")
+        )}${lowKeys.length > 3 ? " 等" : ""}</span>
+      </div>`
+    : "";
+
+  const platformTiles = providers
+    .map(
+      (provider) => `<button class="platform-tile" data-action="go-platform" data-id="${esc(
+        provider.id
+      )}">
+        <div class="platform-tile-top">
+          ${providerAvatar(provider)}
+          <strong>${esc(provider.name)}</strong>
+          <span class="platform-count">${provider.key_count} Key</span>
+        </div>
+        <div class="platform-tile-desc">${esc(provider.description || "")}</div>
+        <div class="platform-tile-meta">${provider.model_count} 个模型${icon("chevron-right", 13)}</div>
+      </button>`
+    )
+    .join("");
+
+  return `
+    <div class="page-head compact">
+      <div class="page-title-wrap">
+        <div class="eyebrow">API LEDGER</div>
+        <h1 class="page-title">把散落的 Key，收进一个地方。</h1>
+        <p class="page-sub">记录平台、用途和模型能力；需要调用时，直接复制对应平台、对应模型的代码片段。</p>
+      </div>
+    </div>
+
+    ${alertHtml}
+    <section class="overview-strip">${metricHtml}</section>
+
+    <section class="card platform-panel">
+      <div class="card-head">
+        <div><div class="card-title">平台</div><div class="card-sub">点一个平台，查看它下面的 Key。</div></div>
+        <span class="badge badge-quiet">${providers.length} 个</span>
+      </div>
+      <div class="card-body">
+        <div class="platform-grid">${platformTiles}</div>
+      </div>
+    </section>
   `;
 }

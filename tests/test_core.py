@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from core.catalog import PROVIDERS
-from core.importer import parse_pasted
+from core.importer import parse_pasted, provider_from_title
 from core.providers import BalanceNotSupported, _request_json, fetch_balance, fetch_models
 from core.security import protect, unprotect
 from core.snippets import SnippetError, generate_snippet
@@ -19,6 +19,13 @@ PROVIDER_MAP = {provider["id"]: provider for provider in PROVIDERS}
 
 
 class ImporterTests(unittest.TestCase):
+    def test_provider_from_window_title(self):
+        self.assertEqual(
+            provider_from_title("DeepSeek 开放平台 - Google Chrome"), "deepseek"
+        )
+        self.assertEqual(provider_from_title("阿里云百炼控制台"), "qwen")
+        self.assertIsNone(provider_from_title("API 钥匙簿"))
+
     def test_env_screenshot_format(self):
         result = parse_pasted(
             "LLM_WIKI_API_BASE=https://api.deepseek.com\n"
@@ -205,6 +212,23 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(settings["clipboard_watch"], "0")
         self.assertEqual(settings["low_balance_threshold"], "5.0")
         self.assertEqual(settings["low_balance_currency"], "USD")
+
+    def test_restore_backup(self):
+        raw = self.store.backup_bytes()
+        safety = self.store.restore_backup(raw)
+        self.assertTrue(Path(safety).exists())
+        with self.assertRaises(StoreError):
+            self.store.restore_backup(b"not a sqlite database")
+
+    def test_background_roundtrip(self):
+        raw = b"\x89PNG\r\n\x1a\n" + b"test"
+        version = self.store.save_background(raw, "image/png")
+        background = self.store.get_background()
+        self.assertIsNotNone(background)
+        self.assertEqual(background[0], raw)
+        self.assertEqual(background[1], "image/png")
+        self.assertEqual(self.store.get_settings()["background_style"], "custom")
+        self.assertEqual(self.store.get_settings()["background_version"], version)
 
     def test_low_balance_only_compares_same_currency(self):
         cny = self.store.create_key(

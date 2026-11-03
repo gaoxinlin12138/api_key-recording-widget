@@ -36,6 +36,10 @@ const ICON_PATHS = {
   "lock": '<rect x="4.5" y="10" width="15" height="10" rx="2"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10M12 14v3"/>',
   "info": '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.1"/>',
   "grip": '<circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/>',
+  "image": '<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="m5 17 4.5-4.5 3 3L15 13l4 4"/>',
+  "upload": '<path d="M12 16V4M7 9l5-5 5 5M4 20h16"/>',
+  "minimize": '<path d="M5 12h14"/>',
+  "maximize": '<rect x="5" y="5" width="14" height="14" rx="1.5"/>',
 };
 
 export function icon(name, size = 18, className = "") {
@@ -113,6 +117,39 @@ export function formatNumber(value) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "—";
   return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(Number(value));
 }
+
+export const BACKGROUND_PRESETS = [
+  {
+    id: "aurora",
+    name: "DODIN",
+    hint: "天空 · 奶油",
+    colors: ["#C8EBFE", "#DCEEFF", "#FDF6E6"],
+  },
+  {
+    id: "ocean",
+    name: "海面",
+    hint: "湖蓝 · 薄荷",
+    colors: ["#d5f2f2", "#d9ebff", "#e4f6ed"],
+  },
+  {
+    id: "sunset",
+    name: "日落",
+    hint: "杏粉 · 雾紫",
+    colors: ["#ffead7", "#ffdfe8", "#e9defa"],
+  },
+  {
+    id: "forest",
+    name: "森林",
+    hint: "苔绿 · 米白",
+    colors: ["#e2f0dc", "#d9eee6", "#f4efdf"],
+  },
+  {
+    id: "paper",
+    name: "纸白",
+    hint: "暖白 · 灰米",
+    colors: ["#f7f1e4", "#eee7d8", "#faf7ef"],
+  },
+];
 
 export const CAPABILITY_LABELS = {
   chat: "文本",

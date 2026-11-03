@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Changed key storage from Windows DPAPI to portable plaintext SQLite.
+- Existing DPAPI databases migrate on first launch and keep an encrypted safety copy.
+- Added "Restore database backup" in Settings → Data & Backup.
+- Backups and the database can now be moved between computers; they contain plaintext keys and must be protected.
+- Redesigned the dashboard, settings, search preview, update dialog, add-key dialog, backgrounds and glass styling.
+
 ## 1.2.0 — 2026-11-02
 
 - Switched the Windows installer to a folder-style deployment (exe + `_internal`).

@@ -1,0 +1,53 @@
+﻿<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><link rel="stylesheet" href="mockups.css"><style>
+body{background:linear-gradient(150deg,#EAF6FF 0%,#FDF6E6 100%)}
+.titlebar{height:34px;background:rgba(238,248,255,.75);border-bottom:1px solid rgba(255,255,255,.7);display:flex;align-items:center;padding:0 14px;font-size:11px;color:#526A7D;gap:8px;backdrop-filter:blur(24px)}
+.win-controls{margin-left:auto;display:flex;gap:18px;color:#6B7C8D;font-size:12px}
+.shell{display:grid;grid-template-columns:64px 300px minmax(0,1fr);height:666px}
+.rail{border-right:1px solid rgba(255,255,255,.6);background:rgba(255,255,255,.35);backdrop-filter:blur(24px);display:flex;flex-direction:column;align-items:center;padding:14px 0;gap:10px}
+.rail .logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(145deg,#4C8DF6,#1E5BB8);color:#fff;display:grid;place-items:center;font-size:15px;box-shadow:0 6px 14px rgba(47,111,228,.2);margin-bottom:14px}
+.rail .ri{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;color:#6B7C8D;font-size:15px}
+.rail .ri.active{background:rgba(255,255,255,.7);color:#1E5BB8;box-shadow:inset 0 1px 0 #fff}.rail .bottom{margin-top:auto;display:grid;gap:8px}
+.listpane{border-right:1px solid rgba(255,255,255,.6);background:rgba(255,255,255,.46);backdrop-filter:blur(24px);padding:16px 13px;overflow:hidden}
+.listhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.listhead h2{font-size:17px;margin:0}.listhead span{font-size:10px;color:#8B9AAA;background:rgba(255,255,255,.56);border-radius:6px;padding:2px 6px}
+.searchbox{height:34px;border-radius:9px;border:1px solid rgba(255,255,255,.9);background:rgba(255,255,255,.55);display:flex;align-items:center;gap:7px;padding:0 10px;color:#8495A5;font-size:11px;margin-bottom:10px}
+.chips{display:flex;gap:5px;margin-bottom:12px}.chip{font-size:10px;padding:4px 7px;border-radius:6px;border:1px solid rgba(255,255,255,.7);background:rgba(255,255,255,.4);color:#5F7487}.chip.active{background:rgba(255,255,255,.8);color:#174A9C;box-shadow:inset 0 1px 0 #fff}
+.keyitem{padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.6);background:rgba(255,255,255,.3);margin-bottom:8px;display:grid;gap:6px}
+.keyitem.active{background:rgba(255,255,255,.72);border-color:rgba(255,255,255,.95);box-shadow:0 7px 18px rgba(27,58,80,.08)}.keyitem .row{display:flex;align-items:center;gap:8px}.keyitem .txt{display:grid;gap:1px}.keyitem strong{font-size:12px}.keyitem small{font-size:10px;color:#8B9AAA}.keyitem .meta{font-size:9.5px;color:#7A8C9D;display:flex;justify-content:space-between}
+.detail{padding:22px 24px;overflow:hidden;background:rgba(255,255,255,.18)}
+.detailhead{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px}.detailhead h1{font-size:22px;margin:0;letter-spacing:-.02em}.detailhead .sub{font-size:10.5px;color:#7A8C9D;margin-top:4px}.badge{font-size:9px;padding:3px 6px;border-radius:5px;background:#EAF3FF;color:#1D4F9E;vertical-align:middle;margin-left:6px}
+.actions{display:flex;gap:6px}.snippetbox{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.minicard{border:1px solid rgba(255,255,255,.8);border-radius:11px;background:rgba(255,255,255,.42);padding:12px}
+.minicard h3{font-size:11px;margin:0 0 7px;color:#526A7D}.info{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px}.info label{font-size:9px;color:#91A0AF;display:block;margin-bottom:2px}.info strong{font-size:11px;font-weight:600}
+.modelrow{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.5);font-size:10.5px}.modelrow:last-child{border-bottom:0}.tag{font-size:8.5px;padding:2px 5px;background:#EAF3FF;color:#2F6FE4;border-radius:4px}
+.bottom-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.code{margin-top:12px;border-radius:11px;background:rgba(19,31,45,.9);color:#DCE9F5;padding:12px 14px;font-family:Consolas,monospace;font-size:10px;line-height:1.7}.code .k{color:#9EC5FF}.code .s{color:#B9E4C8}
+</style></head><body>
+<div class="titlebar"><div class="brand-mark" style="width:16px;height:16px;border-radius:4px;font-size:9px;box-shadow:none">⌘</div> API 钥匙簿 <div class="win-controls"><span>—</span><span>□</span><span>×</span></div></div>
+<div class="shell">
+  <aside class="rail">
+    <div class="logo">⌘</div>
+    <div class="ri active">⌂</div><div class="ri">⌘</div><div class="ri">▦</div><div class="ri">◌</div>
+    <div class="bottom"><div class="ri">⚙</div></div>
+  </aside>
+  <section class="listpane">
+    <div class="listhead"><h2>全部 Key</h2><span>2</span></div>
+    <div class="searchbox">⌕ 搜索 Key 或项目…</div>
+    <div class="chips"><span class="chip active">全部 2</span><span class="chip">DeepSeek 1</span><span class="chip">通义 1</span></div>
+    <div class="keyitem active"><div class="row"><div class="avatar ds">DS</div><div class="txt"><strong>API Key</strong><small>DeepSeek · sk-…c516</small></div></div><div class="meta"><span>可视化知识库调用</span><span>¥12.64</span></div></div>
+    <div class="keyitem"><div class="row"><div class="avatar qw">QW</div><div class="txt"><strong>API Key</strong><small>通义千问 · sk-…U5kw</small></div></div><div class="meta"><span>可视化知识库向量化</span><span>未记录</span></div></div>
+    <div class="keyitem" style="background:transparent;border-style:dashed;text-align:center;color:#7D91A3;font-size:10.5px;padding:9px">＋ 添加 Key</div>
+  </section>
+  <main class="detail">
+    <div class="detailhead"><div><h1>API Key <span class="badge">使用中</span><span class="badge" style="background:#F2EBFF;color:#7A4DCE">DeepSeek</span></h1><div class="sub">sk-…c516 · 4 个可用模型 · 添加于 2026/10/31</div></div><div class="actions"><div class="btn">编辑</div><div class="btn">查看 Key</div></div></div>
+    <div class="snippetbox">
+      <div class="minicard"><h3>Key 信息</h3><div class="info"><div><label>平台</label><strong>DeepSeek</strong></div><div><label>环境变量前缀</label><strong class="mono" style="font-size:10px">DEEPSEEK</strong></div><div><label>项目 / 用途</label><strong>可视化知识库调用</strong></div><div><label>环境</label><strong>开发</strong></div><div><label>最后使用</label><strong>2026/10/31 17:11</strong></div><div><label>过期时间</label><strong>未设置</strong></div></div></div>
+      <div class="minicard"><h3>可用模型</h3><div class="modelrow"><span>DeepSeek Chat</span><span class="tag">文本</span></div><div class="modelrow"><span>DeepSeek-V4.1-Flash</span><span class="tag">文本</span></div><div class="modelrow"><span>DeepSeek Reasoner</span><span class="tag">文本</span></div><div class="modelrow"><span>DeepSeek-V4-Pro</span><span class="tag">文本</span></div></div>
+    </div>
+    <div class="minicard" style="padding:12px 14px"><div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">.env 片段</h3><span class="btn" style="height:26px;font-size:10px;padding:0 9px">复制</span></div><div class="code"><span class="k">DEEPSEEK_API_BASE</span>=https://api.deepseek.com<br><span class="k">DEEPSEEK_API_KEY</span>=<span class="s">sk-…c516</span><br><span class="k">DEEPSEEK_MODEL</span>=deepseek-chat</div></div>
+    <div class="bottom-grid">
+      <div class="minicard"><h3>余额与额度</h3><div style="font-size:23px;font-weight:700;letter-spacing:-.03em">¥12.64 <span style="font-size:10px;color:#7A8C9D;font-weight:400">CNY</span></div><div style="font-size:9.5px;color:#8B9AAA;margin-top:3px">自动查询 · 2 分钟前</div><div style="margin-top:10px;height:5px;border-radius:5px;background:rgba(47,111,228,.12);overflow:hidden"><div style="width:72%;height:100%;background:linear-gradient(90deg,#4C8DF6,#2F6FE4);border-radius:5px"></div></div></div>
+      <div class="minicard"><h3>最近使用</h3><div class="modelrow"><span>更新余额 · DeepSeek</span><span style="font-size:9px;color:#8B9AAA">2 分钟前</span></div><div class="modelrow"><span>复制 Python · API Key</span><span style="font-size:9px;color:#8B9AAA">2 天前</span></div><div class="modelrow"><span>添加 Key · 通义千问</span><span style="font-size:9px;color:#8B9AAA">2 天前</span></div></div>
+    </div>
+  </main>
+</div>
+</body></html>

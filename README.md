@@ -323,21 +323,18 @@ LLM_WIKI_RERANK_MODEL=gte-rerank-v2
 ## 安全设计
 
 - **本地服务**：只监听 `127.0.0.1`，不对外网开放。
-- **Key 加密**：使用 Windows DPAPI，绑定当前 Windows 账户，不需要设置主密码。
+- **明文存储**：Key 以明文保存在本机 SQLite，不再绑定 Windows 账户。请限制数据目录访问权限。
 - **掩码显示**：列表和预览只显示 `sk-…c516` 这样的尾部。
-- **按需解密**：查看或复制时才解密，不写入日志。
+- **按需读取**：查看或复制时才读取真实 Key，不写入日志。
 - **CSRF 防护**：API 需要页面内的会话令牌，跨站请求会被拒绝。
 - **不保存厂商账号密码**：工具不会自动登录各平台控制台。
 - **不联网同步**：没有云端账号，没有遥测；只有你主动点击“拉取模型”或“自动查余额”时才会请求对应平台。
 
 ### 换电脑怎么办？
 
-DPAPI 密文只能在同一台电脑、同一个 Windows 账户下解密。换电脑后：
+数据库和备份不再绑定 Windows 账户，可以直接复制到另一台电脑恢复。
 
-- 重新录入 Key，或
-- 在同一台电脑上先把 Key 手动导出/保存到别处，再在新机器录入
-
-数据库备份适合“同一台电脑恢复”，不是跨机器迁移方案。
+但备份包含明文 Key，必须通过可信渠道传输，并限制数据目录访问权限。
 
 ---
 
@@ -349,7 +346,7 @@ DPAPI 密文只能在同一台电脑、同一个 Windows 账户下解密。换�
 data/ledger.db
 ```
 
-这个目录已加入 `.gitignore`。不要把 `data/ledger.db` 发给别人，也不要把包含真实 Key 的 `.env` 片段提交到代码仓库。
+这个目录已加入 `.gitignore`。`data/ledger.db` 和备份都包含明文 Key，不要发给别人，也不要把包含真实 Key 的 `.env` 片段提交到代码仓库。
 
 ---
 
@@ -390,7 +387,7 @@ core/
   store.py              SQLite 业务逻辑
   db.py                 表结构与初始数据
   catalog.py            平台与模型目录
-  security.py           Windows DPAPI 加密
+  security.py           旧版 DPAPI 迁移（仅兼容旧库）
   importer.py           .env / JSON / curl / 裸 Key 解析
   snippets.py           .env / Python / cURL / JS 片段生成
   providers.py          模型拉取与余额查询适配器
@@ -406,7 +403,7 @@ web/
 assets/
   app.ico               打包图标
 tests/
-  test_core.py          解析、片段、存储、加密、适配器测试
+  test_core.py          解析、片段、存储、迁移、适配器测试
 docs/                   截图
 data/                   运行时数据（已 gitignore）
 api_key_ledger.spec         文件夹式 PyInstaller 配置
@@ -459,7 +456,7 @@ requirements-build.txt      打包依赖
 
 **换电脑后 Key 解不开？**
 
-DPAPI 与 Windows 账户绑定，这是预期行为。请重新录入，或提前在旧机器上备份可迁移的 Key 信息。
+旧版 DPAPI 备份只能在原电脑/原账户迁移；迁移后的新备份包含明文 Key，可跨电脑恢复。
 
 **剪贴板监听没有反应？**
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import os
 import re
@@ -19,7 +21,7 @@ from typing import Any
 from urllib.parse import unquote, urlparse
 
 from .clipboard import ClipboardWatcher
-from .importer import parse_pasted
+from .importer import parse_pasted, provider_from_title
 from .providers import (
     BalanceNotSupported,
     ProviderError,
@@ -35,7 +37,11 @@ from .version import __app_name__, __version__
 
 APP_NAME = __app_name__
 APP_VERSION = __version__
-MAX_BODY = 2_000_000
+MAX_BODY = 12_000_000
+MAX_BACKGROUND_BYTES = 6_000_000
+BACKGROUND_DATA_URL = re.compile(
+    r"^data:(image/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=\s]+)$", re.S
+)
 
 
 class ApiError(Exception):
@@ -64,6 +70,7 @@ class Application:
         self._pending_lock = threading.Lock()
         self._update_cache: dict[str, Any] | None = None
         self._update_cache_at = 0.0
+        self._balance_refresh_lock = threading.Lock()
         self.clipboard = ClipboardWatcher(self._on_clipboard)
         self.settings = self.store.get_settings()
         if self.settings.get("clipboard_watch") == "1":
@@ -75,8 +82,16 @@ class Application:
     # ------------------------------------------------------------------
     # clipboard capture
     # ------------------------------------------------------------------
-    def _on_clipboard(self, text: str) -> None:
+    def _on_clipboard(self, text: str, source_title: str = "") -> None:
         draft = parse_pasted(text)
+        if draft.get("ok") and not draft.get("provider_id") and source_title:
+            provider_id = provider_from_title(source_title)
+            if provider_id:
+                provider = self.store.get_provider(provider_id)
+                draft["provider_id"] = provider_id
+                draft["provider_source"] = "window"
+                if (draft.get("env_prefix") or "").upper() in {"", "API", "CUSTOM"}:
+                    draft["env_prefix"] = provider.get("env_prefix") or "API"
         secret = (draft.get("secret") or "").strip()
         if not draft.get("ok") or not secret:
             return
@@ -150,6 +165,7 @@ class Application:
             "clipboard_available": self.clipboard.available,
             "clipboard_enabled": self.clipboard.enabled,
             "native": self.native,
+            "background_version": self.store.get_settings().get("background_version", "0"),
             "server_time": utc_now(),
         }
         data["clipboard_pending"] = self.pending_list()
@@ -227,6 +243,38 @@ class Application:
         self.settings = settings
         self.clipboard.set_enabled(settings.get("clipboard_watch") == "1")
         return settings
+
+    def reload_settings(self) -> dict[str, str]:
+        settings = self.store.get_settings()
+        self.settings = settings
+        self.clipboard.set_enabled(settings.get("clipboard_watch") == "1")
+        return settings
+
+    def refresh_balances(self) -> dict[str, Any]:
+        """Refresh balances for providers that expose an official endpoint."""
+        with self._balance_refresh_lock:
+            refreshed = 0
+            failed: list[dict[str, str]] = []
+            for key in self.store.list_keys():
+                provider = self.store.get_provider(key["provider"]["id"])
+                if not provider.get("balance_adapter"):
+                    continue
+                try:
+                    secret = self.store.reveal_secret_for_snippet(key["id"])
+                    balance = fetch_balance(provider, secret)
+                    self.store.add_balance(
+                        key["id"], balance, record_event=False
+                    )
+                    refreshed += 1
+                except Exception as exc:  # noqa: BLE001
+                    failed.append(
+                        {
+                            "key_id": key["id"],
+                            "label": key["label"],
+                            "error": str(exc)[:300],
+                        }
+                    )
+            return {"refreshed": refreshed, "failed": failed}
 
     def check_updates(self, force: bool = False) -> dict[str, Any]:
         now = time.time()
@@ -362,7 +410,9 @@ class Handler(BaseHTTPRequestHandler):
         path = unquote(parsed.path)
         try:
             self._check_host()
-            if path.startswith("/api/"):
+            if path == "/api/background/image" and method == "GET":
+                self._serve_background()
+            elif path.startswith("/api/"):
                 self._check_api_auth()
                 self._handle_api(method, path)
             elif method == "GET":
@@ -420,6 +470,13 @@ class Handler(BaseHTTPRequestHandler):
 
         raise ApiError("文件不存在。", 404)
 
+    def _serve_background(self) -> None:
+        background = self.app.store.get_background()
+        if background is None:
+            raise ApiError("还没有自定义背景。", 404)
+        data, mime = background
+        self._send_bytes(200, data, mime)
+
     def _serve_file(self, path: Path, content_type: str | None = None) -> None:
         mime = content_type or {
             ".html": "text/html; charset=utf-8",
@@ -467,6 +524,29 @@ class Handler(BaseHTTPRequestHandler):
 
         if method == "GET" and path == "/api/keys":
             self._send_json(200, {"keys": app.store.list_keys()})
+            return
+
+        match = re.fullmatch(
+            r"/api/providers/([A-Za-z0-9_\-]+)/preview-models", path
+        )
+        if match and method == "POST":
+            body = self._read_body()
+            provider_id = match.group(1)
+            secret = str(body.get("secret") or "").strip()
+            if not secret:
+                raise ApiError("请先填写 API Key，再从平台刷新模型。")
+            provider = app.store.get_provider(provider_id)
+            fetched = fetch_models(
+                provider, secret, str(body.get("base_url") or "").strip()
+            )
+            added = app.store.upsert_fetched_models(provider_id, fetched)
+            self._send_json(
+                200,
+                {
+                    "models": app.store.list_models(provider_id),
+                    "added": len(added),
+                },
+            )
             return
 
         match = re.fullmatch(r"/api/providers/([A-Za-z0-9_\-]+)/models", path)
@@ -625,6 +705,31 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, {"ok": True})
             return
 
+        if method == "POST" and path == "/api/backup/restore":
+            body = self._read_body()
+            data_url = str(body.get("data_url") or "")
+            match = re.match(
+                r"^data:[^,]*;base64,([A-Za-z0-9+/=\s]+)$", data_url, re.S
+            )
+            if not match:
+                raise ApiError("请选择有效的数据库备份文件。")
+            try:
+                raw = base64.b64decode(
+                    re.sub(r"\s+", "", match.group(1)), validate=True
+                )
+            except (binascii.Error, ValueError) as exc:
+                raise ApiError("备份文件损坏，无法读取。") from exc
+            safety_path = app.store.restore_backup(raw)
+            app.reload_settings()
+            self._send_json(
+                200,
+                {
+                    "ok": True,
+                    "backup_path": safety_path,
+                },
+            )
+            return
+
         if method == "GET" and path == "/api/backup":
             payload = app.store.backup_bytes()
             self._send_bytes(
@@ -639,6 +744,39 @@ class Handler(BaseHTTPRequestHandler):
 
         if method == "GET" and path == "/api/export":
             self._send_json(200, app.store.export_json())
+            return
+
+        if method == "POST" and path == "/api/background/upload":
+            body = self._read_body()
+            data_url = str(body.get("data_url") or "").strip()
+            match = BACKGROUND_DATA_URL.fullmatch(data_url)
+            if not match:
+                raise ApiError("只支持 PNG、JPEG 或 WebP 图片。")
+            mime = match.group(1)
+            try:
+                raw = base64.b64decode(
+                    re.sub(r"\s+", "", match.group(2)), validate=True
+                )
+            except (binascii.Error, ValueError) as exc:
+                raise ApiError("图片数据损坏，请重新选择。") from exc
+            if len(raw) > MAX_BACKGROUND_BYTES:
+                raise ApiError("背景图片不能超过 6 MB。", 413)
+            expected = {
+                "image/png": b"\x89PNG\r\n\x1a\n",
+                "image/jpeg": b"\xff\xd8\xff",
+                "image/webp": b"RIFF",
+            }[mime]
+            if not raw.startswith(expected):
+                raise ApiError("图片格式与内容不匹配。")
+            version = app.store.save_background(raw, mime)
+            self._send_json(
+                200,
+                {"ok": True, "style": "custom", "version": version},
+            )
+            return
+
+        if method == "POST" and path == "/api/balances/refresh":
+            self._send_json(200, app.refresh_balances())
             return
 
         if method == "POST" and path == "/api/update/check":

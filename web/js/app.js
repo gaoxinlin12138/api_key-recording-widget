@@ -1,5 +1,6 @@
 import { ApiError, api, copyText, downloadFile } from "./api.js";
 import {
+  BACKGROUND_PRESETS,
   CAPABILITY_LABELS,
   capabilityChips,
   debounce,
@@ -37,6 +38,7 @@ const state = {
   route: null,
   studio: null,
   sidebarOpen: false,
+  settingsTab: "preferences",
 };
 
 let modalState = null;
@@ -52,12 +54,15 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 async function boot() {
   try {
     await loadState();
+    applyBackground(state.settings.background_style, state.app.background_version);
     state.loading = false;
     renderShell();
     state.route = parseHash();
     renderRoute({ scrollTop: true });
     startClipboardPolling();
     setTimeout(() => maybeCheckUpdates(false), 1200);
+    setTimeout(() => autoRefreshBalances(true), 3200);
+    setInterval(() => autoRefreshBalances(true), 15 * 60 * 1000);
     window.addEventListener("hashchange", () => {
       if (modalState) closeModal(true);
       closeSidebar();
@@ -66,6 +71,24 @@ async function boot() {
     });
   } catch (error) {
     renderFatal(error);
+  }
+}
+
+const BACKGROUND_IDS = new Set([
+  ...BACKGROUND_PRESETS.map((preset) => preset.id),
+  "custom",
+]);
+
+function applyBackground(style, version = "") {
+  const id = BACKGROUND_IDS.has(style) ? style : "aurora";
+  document.body.dataset.bg = id;
+  if (id === "custom") {
+    document.body.style.setProperty(
+      "--custom-bg",
+      `url("/api/background/image?v=${encodeURIComponent(version || "0")}")`
+    );
+  } else {
+    document.body.style.removeProperty("--custom-bg");
   }
 }
 
@@ -114,23 +137,49 @@ function renderFatal(error) {
 // shell
 // ---------------------------------------------------------------------------
 function renderShell() {
-  $("#app").innerHTML = `<div class="app-shell">
+  const native = Boolean(state.app.native);
+  const titlebar = native
+    ? `<header class="window-bar">
+        <div class="window-drag pywebview-drag-region">
+          <span class="window-mark">${icon("key", 14)}</span>
+          <span class="window-title">API 钥匙簿</span>
+        </div>
+        <div class="window-controls">
+          <button class="window-control" data-action="minimize-window" aria-label="最小化" title="最小化">${icon(
+            "minimize",
+            15
+          )}</button>
+          <button class="window-control" data-action="toggle-maximize" aria-label="最大化" title="最大化">${icon(
+            "maximize",
+            14
+          )}</button>
+          <button class="window-control window-close" data-action="close-window" aria-label="关闭" title="关闭">${icon(
+            "x",
+            15
+          )}</button>
+        </div>
+      </header>`
+    : "";
+  $("#app").innerHTML = `${titlebar}<div class="app-shell ${native ? "native-window" : ""}">
     <aside class="sidebar" id="sidebar"></aside>
     <div class="sidebar-scrim" id="sidebar-scrim" hidden></div>
     <div class="main-col">
       <header class="topbar">
         <div class="topbar-left">
           <button class="btn btn-ghost btn-icon mobile-menu" data-action="sidebar-toggle" aria-label="打开菜单">${icon("menu", 18)}</button>
-          <div class="searchbox">
-            ${icon("search", 16)}
-            <input id="search-input" autocomplete="off" placeholder="搜索 Key、项目、备注或模型…" aria-label="搜索" value="${esc(
-              state.search
-            )}">
-            <kbd>Ctrl K</kbd>
+          <div class="search-wrap">
+            <div class="searchbox">
+              ${icon("search", 16)}
+              <input id="search-input" autocomplete="off" placeholder="搜索 Key、项目、备注或模型…" aria-label="搜索" value="${esc(
+                state.search
+              )}">
+              <kbd>Ctrl K</kbd>
+            </div>
+            <div id="search-preview" class="search-preview" hidden></div>
           </div>
         </div>
         <div class="topbar-actions">
-          <button class="btn btn-secondary" data-action="add-key">${icon("plus", 15)}<span class="btn-label">添加 Key</span></button>
+          <button class="btn btn-primary btn-add-key" data-action="add-key">${icon("plus", 15)}<span class="btn-label">添加 Key</span></button>
         </div>
       </header>
       <main id="view" class="content" aria-live="polite"></main>
@@ -231,6 +280,9 @@ function renderRoute({ scrollTop = false, preserveScroll = false } = {}) {
   const y = window.scrollY;
   view.innerHTML = html;
   renderSidebar();
+  view.classList.remove("route-enter");
+  void view.offsetWidth;
+  view.classList.add("route-enter");
   if (scrollTop) {
     window.scrollTo(0, 0);
   } else if (preserveScroll) {
@@ -245,29 +297,123 @@ function renderRoute({ scrollTop = false, preserveScroll = false } = {}) {
   }
 }
 
+function keySearchText(key) {
+  return [
+    key.label,
+    key.project,
+    key.note,
+    key.environment,
+    key.provider.name,
+    key.hint,
+    key.env_prefix,
+    ...(key.models || []).flatMap((model) => [
+      model.model_id,
+      model.display_name,
+      ...(model.capabilities || []),
+    ]),
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+function keyMatches(key, query) {
+  return keySearchText(key).includes(query);
+}
+
+function keySearchScore(key, query) {
+  const provider = (key.provider.name || "").toLowerCase();
+  const label = (key.label || "").toLowerCase();
+  const project = (key.project || "").toLowerCase();
+  const models = (key.models || [])
+    .map((model) => `${model.model_id} ${model.display_name || ""}`.toLowerCase())
+    .join(" ");
+  let score = 0;
+  if (provider === query) score += 100;
+  else if (provider.includes(query)) score += 55;
+  if (label === query) score += 90;
+  else if (label.includes(query)) score += 40;
+  if (project.includes(query)) score += 30;
+  if (models.includes(query)) score += 25;
+  if ((key.note || "").toLowerCase().includes(query)) score += 8;
+  return score;
+}
+
 function filteredKeys(providerId = "") {
   const query = state.search.trim().toLowerCase();
   return state.keys.filter((key) => {
     if (providerId && key.provider.id !== providerId) return false;
-    if (!query) return true;
-    const haystack = [
-      key.label,
-      key.project,
-      key.note,
-      key.environment,
-      key.provider.name,
-      key.hint,
-      key.env_prefix,
-      ...(key.models || []).flatMap((model) => [
-        model.model_id,
-        model.display_name,
-        ...(model.capabilities || []),
-      ]),
-    ]
-      .join(" ")
-      .toLowerCase();
-    return haystack.includes(query);
+    return !query || keyMatches(key, query);
   });
+}
+
+function closeSearchPreview() {
+  const panel = $("#search-preview");
+  if (panel) {
+    panel.hidden = true;
+    panel.innerHTML = "";
+  }
+}
+
+function renderSearchPreview() {
+  const panel = $("#search-preview");
+  if (!panel) return;
+  const query = state.search.trim().toLowerCase();
+  if (!query) {
+    closeSearchPreview();
+    return;
+  }
+
+  const keys = state.keys
+    .filter((key) => keyMatches(key, query))
+    .sort((a, b) => keySearchScore(b, query) - keySearchScore(a, query))
+    .slice(0, 5);
+  const providers = state.providers
+    .filter((provider) =>
+      [provider.name, provider.description, provider.id].join(" ").toLowerCase().includes(query)
+    )
+    .slice(0, 4);
+
+  if (!keys.length && !providers.length) {
+    panel.innerHTML = `<div class="search-empty">${icon("search", 17)}<span>没有匹配的 Key 或平台</span></div>`;
+    panel.hidden = false;
+    return;
+  }
+
+  const keyResults = keys
+    .map(
+      (key) => `<button class="search-result" data-action="search-open-key" data-id="${esc(
+        key.id
+      )}">
+        ${providerAvatar(key.provider)}
+        <span class="search-result-main"><strong>${esc(key.label)}</strong><small>${esc(
+        [key.project, key.provider.name].filter(Boolean).join(" · ")
+      )}</small></span>
+        ${icon("arrow-right", 14)}
+      </button>`
+    )
+    .join("");
+
+  const providerResults = providers
+    .map(
+      (provider) => `<button class="search-result" data-action="search-open-provider" data-id="${esc(
+        provider.id
+      )}">
+        ${providerAvatar(provider)}
+        <span class="search-result-main"><strong>${esc(provider.name)}</strong><small>${provider.key_count} 个 Key · ${provider.model_count} 个模型</small></span>
+        ${icon("arrow-right", 14)}
+      </button>`
+    )
+    .join("");
+
+  panel.innerHTML = `
+    ${keys.length ? `<div class="search-group-label">Key <span>${keys.length}</span></div>${keyResults}` : ""}
+    ${providers.length ? `<div class="search-group-label">平台 <span>${providers.length}</span></div>${providerResults}` : ""}
+    <div class="search-preview-footer">
+      <button class="search-all" data-action="search-all">查看全部搜索结果</button>
+      <span><kbd>↵</kbd> 打开第一项 · <kbd>Esc</kbd> 关闭</span>
+    </div>
+  `;
+  panel.hidden = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -608,8 +754,23 @@ function renderModelPicker(providerId, selectedIds) {
 
 function openAddKeyModal(draft = null, keyToEdit = null) {
   const isEdit = Boolean(keyToEdit);
-  const providerId = draft?.provider_id || keyToEdit?.provider?.id || state.providers[0]?.id || "";
-  const provider = state.providers.find((item) => item.id === providerId) || state.providers[0];
+  const routeProviderId =
+    state.route?.name === "keys"
+      ? state.route.providerId
+      : state.route?.name === "key"
+      ? state.keys.find((key) => key.id === state.route.keyId)?.provider?.id
+      : "";
+  const ambiguousDraft = Boolean(draft && !draft.provider_id && !keyToEdit);
+  const providerId = ambiguousDraft
+    ? ""
+    : draft?.provider_id ||
+      keyToEdit?.provider?.id ||
+      routeProviderId ||
+      state.providers[0]?.id ||
+      "";
+  const provider = providerId
+    ? state.providers.find((item) => item.id === providerId) || state.providers[0]
+    : null;
   let selectedIds;
   if (isEdit) {
     selectedIds = (keyToEdit.models || []).map((model) => model.id);
@@ -625,31 +786,35 @@ function openAddKeyModal(draft = null, keyToEdit = null) {
   const title = isEdit ? "编辑 Key" : "添加 API Key";
   const subtitle = isEdit
     ? "修改用途、备注或模型勾选；API Key 留空表示不修改。"
-    : "粘贴一次，平台、地址和模型会自动带入。保存前可以改。";
+    : ambiguousDraft
+    ? "识别到 Key，但未能确定平台，请先选择平台。"
+    : "填写平台和 Key，模型默认全选；保存后仍然可以调整。";
 
   const body = `
-    ${
-      isEdit
-        ? ""
-        : `<div class="form-section">
-            <div class="form-section-title">${icon("clipboard", 13)} 从文本识别</div>
-            <textarea class="textarea mono" id="import-text" spellcheck="false" placeholder="粘贴 .env、JSON、curl 或单独的 API Key…"></textarea>
-            <div class="btn-row">
-              <button class="btn btn-secondary btn-sm" type="button" data-action="parse-paste">${icon(
-                "sparkles",
-                14
-              )} 识别粘贴内容</button>
-              <span class="field-hint" id="parse-result">识别后会自动填入下面的字段</span>
-            </div>
-          </div>`
-    }
-    <form id="key-form" class="form-section" autocomplete="off">
+    <form id="key-form" class="key-form" autocomplete="off">
+      ${
+        ambiguousDraft
+          ? `<div class="banner banner-warn">${icon(
+              "alert",
+              15
+            )}<div>没有识别出平台。请先选择这个 Key 来自哪个平台，再保存。</div></div>`
+          : ""
+      }
       <div class="form-grid">
+        <div class="form-section-head span-2">
+          <span class="form-step">01</span>
+          <div><strong>连接信息</strong><small>平台、Key 和接口地址</small></div>
+        </div>
         <div class="field">
           <label class="field-label" for="key-provider">平台</label>
-          <select class="select" id="key-provider" name="provider_id" data-provider-select ${
+          <select class="select" id="key-provider" name="provider_id" data-provider-select required ${
             isEdit ? "disabled" : ""
           }>
+            ${
+              ambiguousDraft
+                ? `<option value="" disabled selected>请选择平台</option>`
+                : ""
+            }
             ${state.providers
               .map(
                 (item) =>
@@ -663,9 +828,28 @@ function openAddKeyModal(draft = null, keyToEdit = null) {
         </div>
         <div class="field">
           <label class="field-label" for="key-label">名称</label>
-          <input class="input" id="key-label" name="label" maxlength="80" required value="${esc(
-            keyToEdit?.label || draft?.label || ""
-          )}" placeholder="例如：LLM Wiki 主 Key">
+          <input class="input" id="key-label" name="label" maxlength="80" required ${
+            isEdit ? "autofocus" : ""
+          } value="${esc(keyToEdit?.label || draft?.label || "")}" placeholder="例如：LLM Wiki 主 Key">
+        </div>
+        <div class="field">
+          <label class="field-label" for="key-project">项目 / 用途</label>
+          <input class="input" id="key-project" name="project" maxlength="120" value="${esc(
+            keyToEdit?.project || ""
+          )}" placeholder="例如：LLM Wiki 文档站">
+        </div>
+        <div class="field">
+          <label class="field-label" for="key-env">环境</label>
+          <select class="select" id="key-env" name="environment">
+            ${["开发", "测试", "生产", "个人"]
+              .map(
+                (item) =>
+                  `<option value="${item}" ${
+                    (keyToEdit?.environment || "开发") === item ? "selected" : ""
+                  }>${item}</option>`
+              )
+              .join("")}
+          </select>
         </div>
 
         <div class="field span-2">
@@ -674,7 +858,7 @@ function openAddKeyModal(draft = null, keyToEdit = null) {
           }</span></label>
           <div class="input-with-action">
             <input class="input mono" id="key-secret" name="secret" type="password" autocomplete="off" spellcheck="false" ${
-              isEdit ? "" : "required"
+              isEdit ? "" : "required autofocus"
             } value="${esc(draft?.secret || "")}" placeholder="${isEdit ? "不修改就留空" : "sk-…"}">
             <button class="btn btn-ghost btn-sm" type="button" data-action="toggle-secret" aria-label="显示或隐藏 Key">${icon(
               "eye",
@@ -700,32 +884,6 @@ function openAddKeyModal(draft = null, keyToEdit = null) {
           }_API_KEY</span>。</div>
         </div>
 
-        <div class="field">
-          <label class="field-label" for="key-project">项目 / 用途</label>
-          <input class="input" id="key-project" name="project" maxlength="120" value="${esc(
-            keyToEdit?.project || ""
-          )}" placeholder="例如：LLM Wiki 文档站">
-        </div>
-        <div class="field">
-          <label class="field-label" for="key-env">环境</label>
-          <select class="select" id="key-env" name="environment">
-            ${["开发", "测试", "生产", "个人"]
-              .map(
-                (item) =>
-                  `<option value="${item}" ${
-                    (keyToEdit?.environment || "开发") === item ? "selected" : ""
-                  }>${item}</option>`
-              )
-              .join("")}
-          </select>
-        </div>
-
-        <div class="field">
-          <label class="field-label" for="key-expires">过期时间 <span class="optional">可选</span></label>
-          <input class="input" id="key-expires" name="expires_at" type="date" value="${esc(
-            keyToEdit?.expires_at || ""
-          )}">
-        </div>
         <div class="field span-2">
           <label class="field-label" for="key-note">备注</label>
           <textarea class="textarea" id="key-note" name="note" maxlength="2000" placeholder="例如：只给内部知识库用，额度每月 20 元。">${esc(
@@ -734,14 +892,25 @@ function openAddKeyModal(draft = null, keyToEdit = null) {
         </div>
       </div>
 
-      <div class="form-section">
-        <div class="form-section-title">${icon("layers", 13)} 可用模型</div>
-        <div id="model-picker">${renderModelPicker(providerId, selectedIds)}</div>
-      </div>
+      <details class="models-details" ${isEdit ? "open" : ""}>
+        <summary>
+          <span class="form-step">02</span>
+          <span class="models-summary-title">可用模型</span>
+          <span class="models-summary-hint">本地目录可能过期</span>
+          <button class="btn btn-secondary btn-sm models-summary-refresh" type="button" data-action="preview-models" ${
+            providerId ? "" : "disabled"
+          }>${icon("refresh", 13)} 从平台刷新</button>
+        </summary>
+        <div id="model-picker">${
+          providerId
+            ? renderModelPicker(providerId, selectedIds)
+            : `<div class="field-hint" style="padding:4px 2px">选择平台后再勾选模型。</div>`
+        }</div>
+      </details>
     </form>
   `;
 
-  const footer = `<div class="foot-left">Key 会在保存时加密，列表只显示尾部。</div>
+  const footer = `<div class="foot-left">Key 以明文保存在本机，列表只显示尾部。</div>
     <div class="foot-actions">
       <button class="btn btn-secondary" type="button" data-action="close-modal">取消</button>
       <button class="btn btn-primary" type="submit" form="key-form" data-action="save-key">${icon(
@@ -761,6 +930,7 @@ function openAddKeyModal(draft = null, keyToEdit = null) {
       const providerSelect = $("#key-provider", dialog);
       const prefixInput = $("#key-prefix", dialog);
       const baseInput = $("#key-base", dialog);
+      const refreshButton = $('[data-action="preview-models"]', dialog);
 
       const updatePrefixHint = () => {
         const preview = $("#prefix-preview", dialog);
@@ -780,6 +950,7 @@ function openAddKeyModal(draft = null, keyToEdit = null) {
       providerSelect?.addEventListener("change", () => {
         const nextProvider = state.providers.find((item) => item.id === providerSelect.value);
         if (!nextProvider) return;
+        if (refreshButton) refreshButton.disabled = false;
         if (!prefixInput.dataset.touched) prefixInput.value = nextProvider.env_prefix || "API";
         updatePrefixHint();
         baseInput.placeholder = nextProvider.default_base_url || "https://…";
@@ -892,6 +1063,53 @@ function applyDraftToForm(draft, dialog, markDirty = true) {
   if (markDirty && modalState) modalState.dirty = true;
 }
 
+async function refreshDraftModels(button) {
+  const dialog = $(".modal");
+  if (!dialog) return;
+  const providerId = $("#key-provider", dialog)?.value;
+  const secret = $("#key-secret", dialog)?.value.trim();
+  if (!providerId) {
+    toast("请先选择平台。", "warn");
+    return;
+  }
+  if (!secret) {
+    toast("请先填写 API Key，再刷新模型。", "warn");
+    return;
+  }
+  await withBusy(button, "刷新中…", async () => {
+    try {
+      const result = await api(`/api/providers/${encodeURIComponent(providerId)}/preview-models`, {
+        method: "POST",
+        body: {
+          secret,
+          base_url: $("#key-base", dialog)?.value || "",
+        },
+      });
+      state.models = state.models
+        .filter((model) => model.provider_id !== providerId)
+        .concat(result.models || []);
+      const checked = new Set(
+        $$('#model-picker input[name="model_ids"]:checked', dialog).map(
+          (input) => input.value
+        )
+      );
+      for (const model of result.models || []) checked.add(model.id);
+      $("#model-picker", dialog).innerHTML = renderModelPicker(
+        providerId,
+        [...checked]
+      );
+      toast(
+        result.added
+          ? `已刷新模型，新增 ${result.added} 个。`
+          : "模型已是最新，没有新增。",
+        "ok"
+      );
+    } catch (error) {
+      toast(error.message, "err");
+    }
+  });
+}
+
 async function saveKeyForm(form, isEdit, keyToEdit, dialog) {
   setModalError("");
   const formData = new FormData(form);
@@ -922,7 +1140,6 @@ async function saveKeyForm(form, isEdit, keyToEdit, dialog) {
     project: formData.get("project")?.toString() || "",
     environment: formData.get("environment")?.toString() || "开发",
     note: formData.get("note")?.toString() || "",
-    expires_at: formData.get("expires_at")?.toString() || "",
     model_ids: modelIds,
   };
   if (!isEdit || secret) payload.secret = secret;
@@ -942,6 +1159,7 @@ async function saveKeyForm(form, isEdit, keyToEdit, dialog) {
       if (saved?.id) {
         navigate(`#/key/${saved.id}`);
         if (state.route?.keyId === saved.id) renderRoute({ preserveScroll: false });
+        setTimeout(() => autoRefreshBalances(true), 1200);
       }
     } catch (error) {
       setModalError(error.message);
@@ -1337,7 +1555,7 @@ async function openRevealModal(key) {
     const data = await api(`/api/keys/${key.id}/reveal`, { method: "POST" });
     openModal({
       title: `查看 Key · ${key.label}`,
-      subtitle: "完整 Key 只会在这次弹窗里显示，关闭后请重新解密。",
+      subtitle: "完整 Key 只会在这次弹窗里显示，关闭后请重新查看。",
       body: `<div class="banner banner-warn">${icon(
         "shield",
         16
@@ -1455,11 +1673,110 @@ async function quickCopy(keyId, button) {
 // ---------------------------------------------------------------------------
 // settings and data
 // ---------------------------------------------------------------------------
+async function setBackground(style) {
+  try {
+    const result = await api("/api/settings", {
+      method: "PATCH",
+      body: { background_style: style },
+    });
+    state.settings = result.settings;
+    state.settingsTab = "appearance";
+    applyBackground(style, state.app.background_version);
+    renderRoute({ preserveScroll: true });
+  } catch (error) {
+    toast(error.message, "err");
+  }
+}
+
+async function handleBackgroundFile(file) {
+  if (!file) return;
+  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+    toast("只支持 PNG、JPEG 或 WebP 图片。", "warn");
+    return;
+  }
+  if (file.size > 6 * 1024 * 1024) {
+    toast("背景图片不能超过 6 MB。", "warn");
+    return;
+  }
+  try {
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("读取图片失败。"));
+      reader.readAsDataURL(file);
+    });
+    toast("正在保存背景…", "ok");
+    await api("/api/background/upload", {
+      method: "POST",
+      body: { data_url: dataUrl },
+    });
+    await loadState();
+    state.settingsTab = "appearance";
+    applyBackground("custom", state.app.background_version);
+    renderRoute({ preserveScroll: true });
+    toast("背景已更新", "ok");
+  } catch (error) {
+    toast(error.message, "err");
+  }
+}
+
+async function handleRestoreFile(file) {
+  if (!file) return;
+  if (file.size > 8 * 1024 * 1024) {
+    toast("数据库备份不能超过 8 MB。", "warn");
+    return;
+  }
+  const confirmed = await confirmDialog({
+    title: "恢复数据库备份？",
+    message: `将用「${file.name}」覆盖当前数据库。当前库会先自动备份，恢复后页面会重新加载。`,
+    confirmText: "恢复备份",
+    danger: true,
+  });
+  if (!confirmed) return;
+  try {
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("读取备份文件失败。"));
+      reader.readAsDataURL(file);
+    });
+    toast("正在恢复数据库…", "ok");
+    await api("/api/backup/restore", {
+      method: "POST",
+      body: { data_url: dataUrl },
+    });
+    toast("恢复成功，正在重新加载…", "ok");
+    setTimeout(() => location.reload(), 900);
+  } catch (error) {
+    toast(error.message, "err");
+  }
+}
+
+document.addEventListener("change", (event) => {
+  if (event.target?.id === "background-file") {
+    handleBackgroundFile(event.target.files?.[0]);
+    event.target.value = "";
+  }
+  if (event.target?.id === "restore-file") {
+    handleRestoreFile(event.target.files?.[0]);
+    event.target.value = "";
+  }
+});
+
+document.addEventListener("dblclick", (event) => {
+  if (event.target.closest?.(".window-drag")) {
+    window.pywebview?.api?.toggle_maximize?.();
+  }
+});
+
+
+
 async function saveSettings(form, button) {
   const data = new FormData(form);
   const payload = {
     clipboard_watch: data.get("clipboard_watch") ? "1" : "0",
     check_updates: data.get("check_updates") ? "1" : "0",
+    auto_refresh_balance: data.get("auto_refresh_balance") ? "1" : "0",
     low_balance_threshold: data.get("low_balance_threshold")?.toString() || "20",
     low_balance_currency: data.get("low_balance_currency")?.toString() || "CNY",
     default_format: data.get("default_format")?.toString() || "env",
@@ -1478,6 +1795,44 @@ async function saveSettings(form, button) {
       toast(error.message, "err");
     }
   });
+}
+
+// ---------------------------------------------------------------------------
+// balance refresh
+// ---------------------------------------------------------------------------
+let balanceRefreshInFlight = false;
+
+async function autoRefreshBalances(silent = true) {
+  if (balanceRefreshInFlight) return;
+  if (state.settings.auto_refresh_balance === "0") return;
+  if (modalState) return;
+  if (!state.route || !["dashboard", "key"].includes(state.route.name)) {
+    return;
+  }
+  const supported = (state.providers || []).some(
+    (provider) => provider.balance_adapter && provider.key_count > 0
+  );
+  if (!supported) return;
+  balanceRefreshInFlight = true;
+  try {
+    const result = await api("/api/balances/refresh", { method: "POST" });
+    if (result.refreshed > 0) {
+      await loadState();
+      if (!modalState && ["dashboard", "key"].includes(state.route?.name)) {
+        renderRoute({ preserveScroll: true });
+      }
+    }
+    if (!silent && result.failed?.length) {
+      toast(
+        `${result.failed.length} 个 Key 的余额自动刷新失败，可到详情页手动更新。`,
+        "warn"
+      );
+    }
+  } catch (error) {
+    if (!silent) toast(error.message, "err");
+  } finally {
+    balanceRefreshInFlight = false;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1591,15 +1946,27 @@ function startClipboardPolling() {
     hideCaptureCard();
     return;
   }
-  clipboardTimer = setInterval(pollClipboard, 2800);
+  clipboardTimer = setInterval(pollClipboard, 1500);
   pollClipboard();
 }
 
 async function pollClipboard() {
   if (state.settings.clipboard_watch !== "1" || !state.app.clipboard_available) return;
   try {
+    const previousIds = new Set(state.clipboardPending.map((item) => item.id));
     const data = await api("/api/clipboard/pending");
-    state.clipboardPending = data.pending || [];
+    const pending = data.pending || [];
+    const fresh = pending.find((item) => !previousIds.has(item.id));
+    state.clipboardPending = pending;
+
+    if (fresh) {
+      window.pywebview?.api?.focus_window?.();
+      if (!modalState && !state.loading) {
+        setTimeout(() => {
+          if (!modalState) acceptClipboard(fresh.id);
+        }, 350);
+      }
+    }
     renderCaptureCard();
   } catch {
     /* clipboard polling is best-effort */
@@ -1800,6 +2167,16 @@ document.addEventListener("click", async (event) => {
       "exit-app",
       "check-updates",
       "open-update",
+      "settings-tab",
+      "set-background",
+      "reset-background",
+      "minimize-window",
+      "toggle-maximize",
+      "close-window",
+      "search-open-key",
+      "search-open-provider",
+      "search-all",
+      "preview-models",
     ].includes(action)
   ) {
     event.preventDefault();
@@ -1850,7 +2227,7 @@ document.addEventListener("click", async (event) => {
       });
     } else if (action === "reveal-key") {
       const key = state.keys.find((item) => item.id === id);
-      if (key) await withBusy(actionEl, "解密中…", () => openRevealModal(key));
+      if (key) await withBusy(actionEl, "读取中…", () => openRevealModal(key));
     } else if (action === "manage-models") {
       await openModelManager(id);
     } else if (action === "manual-balance") {
@@ -1896,7 +2273,19 @@ document.addEventListener("click", async (event) => {
       state.search = "";
       const input = $("#search-input");
       if (input) input.value = "";
+      closeSearchPreview();
       renderRoute({ preserveScroll: true });
+    } else if (action === "search-open-key") {
+      closeSearchPreview();
+      navigate(`#/key/${id}`);
+    } else if (action === "search-open-provider") {
+      closeSearchPreview();
+      navigate(`#/platform/${id}`);
+    } else if (action === "search-all") {
+      closeSearchPreview();
+      navigate("#/keys");
+    } else if (action === "preview-models") {
+      await refreshDraftModels(actionEl);
     } else if (action === "sidebar-toggle") {
       if (state.sidebarOpen) closeSidebar();
       else openSidebar();
@@ -1915,6 +2304,28 @@ document.addEventListener("click", async (event) => {
       await maybeCheckUpdates(true, actionEl);
     } else if (action === "open-update") {
       await withBusy(actionEl, "打开中…", openUpdatePage);
+    } else if (action === "settings-tab") {
+      state.settingsTab = id;
+      $$("[data-settings-tab]").forEach((tab) => {
+        tab.classList.toggle("active", tab.dataset.id === id);
+      });
+      $$("[data-settings-panel]").forEach((panel) => {
+        panel.classList.toggle("active", panel.dataset.settingsPanel === id);
+      });
+    } else if (action === "set-background") {
+      if (id === "custom") {
+        $("#background-file")?.click();
+      } else {
+        await setBackground(id);
+      }
+    } else if (action === "reset-background") {
+      await setBackground("aurora");
+    } else if (action === "minimize-window") {
+      await window.pywebview?.api?.minimize_window?.();
+    } else if (action === "toggle-maximize") {
+      await window.pywebview?.api?.toggle_maximize?.();
+    } else if (action === "close-window") {
+      await window.pywebview?.api?.close_app?.();
     }
   } catch (error) {
     toast(error.message || String(error), "err");
@@ -1952,18 +2363,28 @@ document.addEventListener("change", async (event) => {
 
 const onSearch = debounce(() => {
   state.search = $("#search-input")?.value || "";
-  if (state.route?.name !== "keys") {
-    navigate("#/keys");
-  } else {
-    renderRoute({ preserveScroll: true });
-  }
-}, 160);
+  renderSearchPreview();
+}, 120);
 
 document.addEventListener("input", (event) => {
   if (event.target.id === "search-input") {
     onSearch();
   }
 });
+
+document.addEventListener("focusin", (event) => {
+  if (event.target.id === "search-input") {
+    renderSearchPreview();
+  }
+});
+
+document.addEventListener("click", (event) => {
+  if (!event.target.closest?.(".search-wrap")) {
+    closeSearchPreview();
+  }
+});
+
+window.addEventListener("hashchange", closeSearchPreview);
 
 document.addEventListener("submit", async (event) => {
   if (event.target.id === "settings-form") {
@@ -1980,6 +2401,12 @@ document.addEventListener("keydown", (event) => {
     (target.matches("input, textarea, select") || target.isContentEditable);
 
   if (event.key === "Escape") {
+    const preview = $("#search-preview");
+    if (preview && !preview.hidden) {
+      event.preventDefault();
+      closeSearchPreview();
+      return;
+    }
     if (modalState) {
       event.preventDefault();
       requestCloseModal();
@@ -1994,6 +2421,20 @@ document.addEventListener("keydown", (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
     event.preventDefault();
     $("#search-input")?.focus();
+    renderSearchPreview();
+    return;
+  }
+  if (event.key === "Enter" && target?.id === "search-input") {
+    const query = ($("#search-input")?.value || state.search).trim().toLowerCase();
+    if (!query) return;
+    event.preventDefault();
+    const firstKey = state.keys.find((key) => keyMatches(key, query));
+    closeSearchPreview();
+    if (firstKey) {
+      navigate(`#/key/${firstKey.id}`);
+    } else {
+      navigate("#/keys");
+    }
     return;
   }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") {

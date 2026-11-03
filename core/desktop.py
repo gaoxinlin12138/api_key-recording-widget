@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -24,12 +26,60 @@ class DesktopApi:
         # and a Window/HTTPServer reference must never be introspected.
         self._window: Any = None
         self._running: Any = None
+        self._maximized = False
 
     def close_app(self) -> bool:
         """Called from the settings page via window.pywebview.api."""
         if self._window is not None:
             self._window.destroy()
         return True
+
+    def minimize_window(self) -> bool:
+        if self._window is not None:
+            self._window.minimize()
+        return True
+
+    def toggle_maximize(self) -> bool:
+        if self._window is not None:
+            if self._maximized:
+                self._window.restore()
+                self._maximized = False
+            else:
+                self._window.maximize()
+                self._maximized = True
+        return True
+
+    def focus_window(self) -> bool:
+        """Bring the running desktop window to the foreground."""
+        if self._window is None:
+            return False
+        try:
+            self._window.show()
+            self._window.restore()
+            self._window.on_top = True
+            threading.Timer(1.2, self._release_top).start()
+        except Exception:  # noqa: BLE001
+            logger.exception("Could not raise the desktop window")
+            return False
+        if sys.platform == "win32":
+            try:
+                import ctypes
+
+                native = getattr(self._window, "native", None)
+                if native is not None and hasattr(native, "Handle"):
+                    hwnd = int(native.Handle.ToInt32())
+                    ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                    ctypes.windll.user32.SetForegroundWindow(hwnd)
+            except Exception:  # noqa: BLE001
+                logger.debug("SetForegroundWindow failed", exc_info=True)
+        return True
+
+    def _release_top(self) -> None:
+        try:
+            if self._window is not None:
+                self._window.on_top = False
+        except Exception:  # noqa: BLE001
+            pass
 
     def save_backup(self) -> str:
         """Save the encrypted SQLite backup through a native save dialog."""
@@ -83,12 +133,14 @@ def run_desktop(
     window = webview.create_window(
         APP_NAME,
         running.url,
-        width=1280,
-        height=860,
-        min_size=(1000, 680),
-        background_color="#f3f1ea",
+        width=1060,
+        height=700,
+        min_size=(940, 620),
+        background_color="#e9f3ee",
         js_api=api,
         text_select=True,
+        frameless=True,
+        easy_drag=False,
     )
     api._window = window
     try:

@@ -32,6 +32,16 @@ if sys.platform == "win32":
     _user32.IsClipboardFormatAvailable.restype = wintypes.BOOL
     _user32.GetClipboardSequenceNumber.argtypes = []
     _user32.GetClipboardSequenceNumber.restype = wintypes.DWORD
+    _user32.GetForegroundWindow.argtypes = []
+    _user32.GetForegroundWindow.restype = wintypes.HWND
+    _user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+    _user32.GetWindowTextLengthW.restype = ctypes.c_int
+    _user32.GetWindowTextW.argtypes = [
+        wintypes.HWND,
+        wintypes.LPWSTR,
+        ctypes.c_int,
+    ]
+    _user32.GetWindowTextW.restype = ctypes.c_int
     _kernel32.GlobalLock.argtypes = [wintypes.HGLOBAL]
     _kernel32.GlobalLock.restype = wintypes.LPVOID
     _kernel32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
@@ -63,8 +73,25 @@ def _read_clipboard() -> str | None:
         _user32.CloseClipboard()
 
 
+def _foreground_title() -> str:
+    if sys.platform != "win32":
+        return ""
+    try:
+        hwnd = _user32.GetForegroundWindow()
+        if not hwnd:
+            return ""
+        length = _user32.GetWindowTextLengthW(hwnd)
+        if length <= 0:
+            return ""
+        buffer = ctypes.create_unicode_buffer(min(length + 1, 512))
+        _user32.GetWindowTextW(hwnd, buffer, len(buffer))
+        return buffer.value.strip()[:300]
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 class ClipboardWatcher:
-    def __init__(self, callback: Callable[[str], None]):
+    def __init__(self, callback: Callable[[str, str], None]):
         self._callback = callback
         self._enabled = False
         self._stop = threading.Event()
@@ -123,7 +150,7 @@ class ClipboardWatcher:
                     self._stop.wait(0.7)
                     continue
                 self._last_hash = digest
-                self._callback(text)
+                self._callback(text, _foreground_title())
             except Exception:  # noqa: BLE001 - a clipboard read must never kill the app
                 pass
             self._stop.wait(0.7)

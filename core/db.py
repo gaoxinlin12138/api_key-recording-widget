@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
     id TEXT PRIMARY KEY,
     provider_id TEXT NOT NULL REFERENCES providers(id),
     label TEXT NOT NULL,
-    secret_enc TEXT NOT NULL,
+    secret TEXT NOT NULL,
     secret_hint TEXT NOT NULL,
     fingerprint TEXT NOT NULL,
     env_prefix TEXT NOT NULL,
@@ -124,6 +124,9 @@ CREATE TABLE IF NOT EXISTS settings (
 DEFAULT_SETTINGS = {
     "clipboard_watch": "1",
     "check_updates": "1",
+    "auto_refresh_balance": "1",
+    "background_style": "aurora",
+    "background_version": "0",
     "low_balance_threshold": "20",
     "low_balance_currency": "CNY",
     "default_format": "env",

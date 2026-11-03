@@ -203,6 +203,26 @@ def _model_candidates_from_assignments(assignments: dict[str, str]) -> list[dict
     return models
 
 
+_TITLE_HINTS = (
+    (("deepseek",), "deepseek"),
+    (("百炼", "dashscope", "通义", "阿里云"), "qwen"),
+    (("claude", "anthropic"), "anthropic"),
+    (("gemini", "google ai studio", "generativelanguage"), "gemini"),
+    (("kimi", "moonshot"), "moonshot"),
+    (("智谱", "bigmodel", "glm"), "zhipu"),
+    (("openai", "chatgpt"), "openai"),
+)
+
+
+def provider_from_title(title: str) -> str | None:
+    """Infer a provider from the foreground window title at copy time."""
+    lower = (title or "").lower()
+    for needles, provider_id in _TITLE_HINTS:
+        if any(needle in lower for needle in needles):
+            return provider_id
+    return None
+
+
 def _guess_provider(
     secret: str, base_url: str, prefix: str, models: list[dict[str, str]]
 ) -> str | None:

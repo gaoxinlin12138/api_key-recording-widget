@@ -7,11 +7,12 @@ import re
 import sqlite3
 import tempfile
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
 from .db import connect, init_db, month_prefix
-from .security import protect, unprotect
+from .security import unprotect
 from .snippets import SUPPORTED_FORMATS, supported_formats
 from .utils import (
     as_float,
@@ -50,6 +51,37 @@ class Store:
         self.db_path = Path(db_path)
         self._write_lock = threading.RLock()
         init_db(self.db_path)
+        self._migrate_plaintext()
+
+    def _migrate_plaintext(self) -> None:
+        """Convert a legacy DPAPI database to portable plaintext storage."""
+        with self._write_lock, connect(self.db_path) as conn:
+            columns = {
+                row["name"]
+                for row in conn.execute("PRAGMA table_info(api_keys)").fetchall()
+            }
+            if "secret_enc" not in columns:
+                return
+            if "secret" in columns:
+                return
+            stamp = time.strftime("%Y%m%d-%H%M%S")
+            safety = self.db_path.with_name(f"ledger.before-plaintext-{stamp}.db")
+            safety.write_bytes(self.backup_bytes())
+            try:
+                conn.execute("ALTER TABLE api_keys RENAME COLUMN secret_enc TO secret")
+                rows = conn.execute("SELECT id, secret FROM api_keys").fetchall()
+                for row in rows:
+                    plaintext = unprotect(row["secret"])
+                    conn.execute(
+                        "UPDATE api_keys SET secret=? WHERE id=?",
+                        (plaintext, row["id"]),
+                    )
+                conn.commit()
+            except Exception as exc:  # noqa: BLE001
+                conn.rollback()
+                raise StoreError(
+                    f"无法迁移旧加密数据。原库已备份到：{safety}"
+                ) from exc
 
     # ------------------------------------------------------------------
     # providers and models
@@ -332,7 +364,7 @@ class Store:
             conn.execute(
                 """
                 INSERT INTO api_keys (
-                    id, provider_id, label, secret_enc, secret_hint, fingerprint,
+                    id, provider_id, label, secret, secret_hint, fingerprint,
                     env_prefix, project, environment, note, status, expires_at,
                     created_at, updated_at, base_url_override
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
@@ -341,7 +373,7 @@ class Store:
                     key_id,
                     provider_id,
                     label,
-                    protect(secret),
+                    secret,
                     mask_secret(secret),
                     fp,
                     env_prefix,
@@ -403,7 +435,7 @@ class Store:
                 ).fetchone()
                 if duplicate:
                     raise StoreError(f"这个 Key 已经录入过了：{duplicate['label']}。")
-                fields["secret_enc"] = protect(secret)
+                fields["secret"] = secret
                 fields["secret_hint"] = mask_secret(secret)
                 fields["fingerprint"] = fp
             if fields:
@@ -431,22 +463,15 @@ class Store:
 
     def reveal_secret(self, key_id: str) -> str:
         row = self.get_key_raw(key_id)
-        try:
-            secret = unprotect(row["secret_enc"])
-        except Exception as exc:  # noqa: BLE001
-            raise StoreError(str(exc)) from exc
+        secret = row["secret"]
         with self._write_lock, connect(self.db_path) as conn:
             self._add_usage(conn, key_id, None, "", "reveal", "查看 Key")
             conn.commit()
         return secret
 
     def reveal_secret_for_snippet(self, key_id: str) -> str:
-        """Decrypt for a one-shot snippet without writing a reveal audit row."""
-        row = self.get_key_raw(key_id)
-        try:
-            return unprotect(row["secret_enc"])
-        except Exception as exc:  # noqa: BLE001
-            raise StoreError(str(exc)) from exc
+        """Read the plaintext secret without writing a reveal audit row."""
+        return self.get_key_raw(key_id)["secret"]
 
     def set_key_models(self, key_id: str, model_ids: list[str]) -> dict[str, Any]:
         with self._write_lock, connect(self.db_path) as conn:
@@ -465,7 +490,9 @@ class Store:
     # ------------------------------------------------------------------
     # balance and usage
     # ------------------------------------------------------------------
-    def add_balance(self, key_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    def add_balance(
+        self, key_id: str, data: dict[str, Any], *, record_event: bool = True
+    ) -> dict[str, Any]:
         if self.get_key_raw(key_id) is None:
             raise StoreError("这个 Key 不存在，可能已经被删除。")
         amount = as_float(data.get("amount"))
@@ -503,7 +530,8 @@ class Store:
             conn.execute(
                 "UPDATE api_keys SET updated_at=? WHERE id=?", (checked_at, key_id)
             )
-            self._add_usage(conn, key_id, None, "", "balance", "更新余额")
+            if record_event:
+                self._add_usage(conn, key_id, None, "", "balance", "更新余额")
             conn.commit()
             return {
                 "amount": amount,
@@ -585,6 +613,32 @@ class Store:
     # ------------------------------------------------------------------
     # settings and dashboard
     # ------------------------------------------------------------------
+    def save_background(self, data: bytes, mime: str) -> str:
+        """Persist a custom background image and select it."""
+        target = self.db_path.parent / "background.bin"
+        target.write_bytes(data)
+        version = str(int(time.time()))
+        with self._write_lock, connect(self.db_path) as conn:
+            for key, value in {
+                "background_style": "custom",
+                "background_mime": mime,
+                "background_version": version,
+            }.items():
+                conn.execute(
+                    "INSERT INTO settings(key, value) VALUES(?, ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (key, value),
+                )
+            conn.commit()
+        return version
+
+    def get_background(self) -> tuple[bytes, str] | None:
+        target = self.db_path.parent / "background.bin"
+        if not target.exists():
+            return None
+        mime = self.get_settings().get("background_mime") or "image/png"
+        return target.read_bytes(), mime
+
     def get_settings(self) -> dict[str, str]:
         with connect(self.db_path) as conn:
             rows = conn.execute("SELECT key, value FROM settings").fetchall()
@@ -592,6 +646,9 @@ class Store:
             for key, value in {
                 "clipboard_watch": "1",
                 "check_updates": "1",
+                "auto_refresh_balance": "1",
+                "background_style": "aurora",
+                "background_version": "0",
                 "low_balance_threshold": "20",
                 "low_balance_currency": "CNY",
             }.items():
@@ -602,6 +659,8 @@ class Store:
         allowed = {
             "clipboard_watch",
             "check_updates",
+            "auto_refresh_balance",
+            "background_style",
             "low_balance_threshold",
             "low_balance_currency",
             "default_format",
@@ -615,6 +674,7 @@ class Store:
                 if key in {
                     "clipboard_watch",
                     "check_updates",
+                    "auto_refresh_balance",
                     "include_comments",
                     "direct_key",
                 }:
@@ -632,6 +692,17 @@ class Store:
                     value = str(value).strip().upper()
                     if not re.fullmatch(r"[A-Z]{3}", value):
                         raise StoreError("提醒币种必须是三位货币代码，例如 CNY、USD。")
+                elif key == "background_style":
+                    value = str(value).strip()
+                    if value not in {
+                        "aurora",
+                        "sunset",
+                        "ocean",
+                        "forest",
+                        "paper",
+                        "custom",
+                    }:
+                        raise StoreError("不支持的背景样式。")
                 conn.execute(
                     "INSERT INTO settings(key, value) VALUES(?, ?) "
                     "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
@@ -715,11 +786,57 @@ class Store:
             if tmp_path and tmp_path.exists():
                 tmp_path.unlink(missing_ok=True)
 
+    def restore_backup(self, data: bytes) -> str:
+        """Validate a ledger backup and restore it into this store.
+
+        The current database is copied to a timestamped safety file first.
+        """
+        if len(data) < 100 or not data.startswith(b"SQLite format 3\x00"):
+            raise StoreError("这不是有效的 SQLite 备份文件。")
+        if len(data) > 12_000_000:
+            raise StoreError("备份文件不能超过 12 MB。")
+
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        safety = self.db_path.with_name(f"ledger.before-restore-{stamp}.db")
+        temp = self.db_path.with_name(f".ledger-restore-{stamp}.tmp")
+        temp.write_bytes(data)
+        source = None
+        target = None
+        try:
+            source = sqlite3.connect(str(temp))
+            check = source.execute("PRAGMA integrity_check").fetchone()
+            if not check or str(check[0]).lower() != "ok":
+                raise StoreError("备份数据库校验失败，文件可能已损坏。")
+            tables = {
+                row[0]
+                for row in source.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
+            }
+            required = {"api_keys", "models", "key_models", "settings"}
+            if not required.issubset(tables):
+                raise StoreError("备份缺少钥匙簿数据表，不能恢复。")
+
+            with self._write_lock:
+                safety.write_bytes(self.backup_bytes())
+                target = sqlite3.connect(str(self.db_path))
+                source.backup(target)
+                target.close()
+                target = None
+            self._migrate_plaintext()
+            return str(safety)
+        finally:
+            if source is not None:
+                source.close()
+            if target is not None:
+                target.close()
+            temp.unlink(missing_ok=True)
+
     def export_json(self) -> dict[str, Any]:
         state = self.state()
         # Remove internal fields that are not useful in a portable export.
         for key in state["keys"]:
-            key.pop("secret_enc", None)
+            key.pop("secret", None)
         return {
             "app": "api-key-ledger",
             "version": 1,
@@ -816,7 +933,7 @@ class Store:
         self, conn: sqlite3.Connection, row: sqlite3.Row
     ) -> dict[str, Any]:
         item = dict(row)
-        item.pop("secret_enc", None)
+        item.pop("secret", None)
         models = conn.execute(
             """
             SELECT m.* FROM models m
