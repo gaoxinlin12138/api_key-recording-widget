@@ -60,10 +60,6 @@ export function attr(value) {
   return esc(value);
 }
 
-export function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
 export function debounce(fn, wait = 160) {
   let timer = null;
   return (...args) => {

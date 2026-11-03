@@ -2036,41 +2036,6 @@ async function dismissClipboard(pendingId) {
 }
 
 // ---------------------------------------------------------------------------
-// quick parse
-// ---------------------------------------------------------------------------
-async function quickParse(button) {
-  const textarea = $("#quick-paste");
-  const errorBox = $("#quick-error");
-  const text = textarea?.value || "";
-  if (!text.trim()) {
-    if (errorBox) {
-      errorBox.textContent = "先粘贴一段内容，再点识别。";
-      errorBox.classList.add("show");
-    }
-    return;
-  }
-  await withBusy(button, "识别中…", async () => {
-    try {
-      const parsed = await api("/api/import/parse", { method: "POST", body: { text } });
-      if (!parsed.ok) {
-        if (errorBox) {
-          errorBox.textContent = parsed.error || "没有识别到 API Key。";
-          errorBox.classList.add("show");
-        }
-        return;
-      }
-      if (errorBox) errorBox.classList.remove("show");
-      openAddKeyModal(parsed);
-    } catch (error) {
-      if (errorBox) {
-        errorBox.textContent = error.message;
-        errorBox.classList.add("show");
-      }
-    }
-  });
-}
-
-// ---------------------------------------------------------------------------
 // utilities
 // ---------------------------------------------------------------------------
 function toast(message, type = "ok") {
@@ -2138,7 +2103,6 @@ document.addEventListener("click", async (event) => {
   if (
     [
       "add-key",
-      "quick-parse",
       "go-dashboard",
       "go-keys",
       "go-platform",
@@ -2185,8 +2149,6 @@ document.addEventListener("click", async (event) => {
   try {
     if (action === "add-key") {
       openAddKeyModal();
-    } else if (action === "quick-parse") {
-      await quickParse(actionEl);
     } else if (action === "go-dashboard") {
       navigate("#/dashboard");
     } else if (action === "go-keys") {
