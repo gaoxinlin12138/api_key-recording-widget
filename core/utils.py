@@ -62,15 +62,3 @@ def as_float(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if math.isfinite(number) else None
-
-
-def safe_int(value: Any, default: int = 0) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def truncate(value: str, limit: int = 120) -> str:
-    value = (value or "").strip()
-    return value if len(value) <= limit else f"{value[:limit - 1]}…"

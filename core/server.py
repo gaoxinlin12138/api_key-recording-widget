@@ -8,7 +8,6 @@ import json
 import os
 import re
 import secrets
-import socket
 import sys
 import threading
 import time
@@ -27,12 +26,11 @@ from .providers import (
     ProviderError,
     fetch_balance,
     fetch_models,
-    supports_balance,
 )
 from .snippets import SnippetError, generate_snippet
 from .store import Store, StoreError
 from .updater import GITHUB_REPO, check_for_update
-from .utils import fingerprint, new_id, sanitize_env_prefix, utc_now
+from .utils import fingerprint, new_id, utc_now
 from .version import __app_name__, __version__
 
 APP_NAME = __app_name__

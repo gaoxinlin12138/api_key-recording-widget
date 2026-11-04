@@ -562,18 +562,6 @@ class Store:
             ).fetchall()
             return [self._public_balance(row) for row in rows if row is not None]
 
-    def add_usage(
-        self,
-        key_id: str | None,
-        model_id: str | None,
-        capability: str,
-        action: str,
-        note: str = "",
-    ) -> None:
-        with self._write_lock, connect(self.db_path) as conn:
-            self._add_usage(conn, key_id, model_id, capability, action, note)
-            conn.commit()
-
     def mark_copied(
         self,
         key_id: str,

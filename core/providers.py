@@ -11,7 +11,7 @@ import json
 import ssl
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlencode
+from urllib.parse import urlencode
 from urllib.request import (
     HTTPRedirectHandler,
     HTTPSHandler,
@@ -221,10 +221,6 @@ def fetch_models(
     return result
 
 
-def supports_balance(provider: dict[str, Any]) -> bool:
-    return bool(provider.get("balance_adapter"))
-
-
 def fetch_balance(provider: dict[str, Any], secret: str) -> dict[str, Any]:
     adapter = (provider.get("balance_adapter") or "").lower()
     if not adapter:
@@ -276,12 +272,3 @@ def fetch_balance(provider: dict[str, Any], secret: str) -> dict[str, Any]:
         }
 
     raise BalanceNotSupported("这个平台的余额适配器还没有实现。")
-
-
-def model_display_name(provider_id: str, model_id: str) -> str:
-    # A small convenience for the UI when a provider returns only IDs.
-    return model_id
-
-
-def safe_quote(value: str) -> str:
-    return quote(value, safe="")
