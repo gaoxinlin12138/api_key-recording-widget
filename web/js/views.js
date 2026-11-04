@@ -800,6 +800,28 @@ export function dashboardView(state) {
     )
     .join("");
 
+  const recent = (stats.recent_usage || []).slice(0, 7);
+  const recentHtml = recent.length
+    ? recent
+        .map(
+          (item) => `<div class="recent-row">
+            <div class="recent-dot">${icon(actionIcon(item.action), 14)}</div>
+            <div class="recent-main">
+              <div class="recent-title">${esc(actionLabel(item.action))} · ${esc(
+            item.key_label || "已删除的 Key"
+          )}</div>
+              <div class="recent-meta">${esc(item.provider_name || "本地记录")}</div>
+            </div>
+            <div class="recent-time">${esc(timeAgo(item.created_at))}</div>
+          </div>`
+        )
+        .join("")
+    : emptyState({
+        iconName: "clock",
+        title: "还没有使用记录",
+        text: "复制一次片段、更新一次余额或查看一次 Key，这里就会出现时间线。",
+      });
+
   return `
     <div class="page-head compact">
       <div class="page-title-wrap">
@@ -820,6 +842,14 @@ export function dashboardView(state) {
       <div class="card-body">
         <div class="platform-grid">${platformTiles}</div>
       </div>
+    </section>
+
+    <section class="card recent-panel">
+      <div class="card-head">
+        <div><div class="card-title">最近活动</div><div class="card-sub">复制片段、更新余额、查看 Key 都会留下记录。</div></div>
+        <span class="badge badge-quiet">最近 ${recent.length} 条</span>
+      </div>
+      <div class="card-body"><div class="recent-list">${recentHtml}</div></div>
     </section>
   `;
 }
