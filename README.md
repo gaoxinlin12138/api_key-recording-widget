@@ -370,10 +370,13 @@ data/ledger.db
 ```bash
 python app.py --no-browser
 python -m unittest discover -s tests -v
+python tools/check_project.py --strict
 ```
 
 测试会在源码模式下起一个真实的本地 HTTP 服务（随机端口 + 临时数据库），
-覆盖路由、CSRF/Host 校验、备份恢复与错误码。**CI 在打包之前强制执行这一步，测试不过就不会出包。**
+覆盖路由、CSRF/Host 校验、备份恢复与错误码。**CI 在打包之前强制执行这两步，任一失败就不会出包。**
+
+开发规范见 [docs/CONVENTIONS.md](docs/CONVENTIONS.md)：模块边界、新增依赖流程、测试要求、流水线门禁、小颗粒任务拆分。
 
 目录结构：
 
@@ -402,7 +405,7 @@ assets/
 tests/
   test_core.py          解析、片段、存储、迁移、适配器测试
   test_server.py        HTTP 层：路由、鉴权、备份恢复、错误码
-docs/                   截图
+docs/                   截图与开发规范（CONVENTIONS.md）
 data/                   运行时数据（已 gitignore）
 api_key_ledger.spec         文件夹式 PyInstaller 配置
 installer.iss               Inno Setup 文件夹式安装包配置
