@@ -2,6 +2,7 @@ import { ApiError, api, copyText, downloadFile } from "./api.js";
 import {
   BACKGROUND_PRESETS,
   CAPABILITY_LABELS,
+  FORMAT_LABELS,
   capabilityChips,
   debounce,
   esc,
@@ -20,9 +21,6 @@ import {
   selectedModelFor,
   settingsView,
 } from "./views.js";
-
-const FORMAT_LABELS = { env: ".env", python: "Python", curl: "cURL", js: "JavaScript" };
-const FORMAT_ORDER = ["env", "python", "curl", "js"];
 
 const state = {
   loading: true,

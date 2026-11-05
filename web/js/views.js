@@ -1,6 +1,8 @@
 import {
   BACKGROUND_PRESETS,
   CAPABILITY_LABELS,
+  FORMAT_LABELS,
+  FORMAT_ORDER,
   actionIcon,
   actionLabel,
   capabilityChips,
@@ -15,9 +17,6 @@ import {
   statusBadge,
   timeAgo,
 } from "./ui.js";
-
-const FORMAT_LABELS = { env: ".env", python: "Python", curl: "cURL", js: "JavaScript" };
-const FORMAT_ORDER = ["env", "python", "curl", "js"];
 
 export function availableCapabilities(key) {
   const order = ["chat", "vision", "embedding", "rerank", "image", "audio"];

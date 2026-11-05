@@ -147,6 +147,9 @@ export const BACKGROUND_PRESETS = [
   },
 ];
 
+export const FORMAT_LABELS = { env: ".env", python: "Python", curl: "cURL", js: "JavaScript" };
+export const FORMAT_ORDER = ["env", "python", "curl", "js"];
+
 export const CAPABILITY_LABELS = {
   chat: "文本",
   vision: "视觉",
