@@ -413,7 +413,8 @@ web/
   js/ui.js              图标、格式化、通用组件
   js/api.js             前端 API 客户端
 assets/
-  app.ico               打包图标
+  app.svg               图标源文件（改图标后跑 tools/make_icon.py）
+  app.ico               打包图标（16/24/32/48/64/128/256）
 tests/
   test_core.py          解析、片段、存储、迁移、适配器测试
   test_server.py        HTTP 层：路由、鉴权、备份恢复、错误码
