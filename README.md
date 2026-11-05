@@ -405,7 +405,7 @@ assets/
 tests/
   test_core.py          解析、片段、存储、迁移、适配器测试
   test_server.py        HTTP 层：路由、鉴权、备份恢复、错误码
-docs/                   截图与开发规范（CONVENTIONS.md）
+docs/                   截图、开发规范（CONVENTIONS.md）、待办（BACKLOG.md）
 data/                   运行时数据（已 gitignore）
 api_key_ledger.spec         文件夹式 PyInstaller 配置
 installer.iss               Inno Setup 文件夹式安装包配置
