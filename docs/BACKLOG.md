@@ -6,6 +6,8 @@
 
 ## P0 · 安全：本机进程可以读走全部 Key
 
+> 完整威胁模型、5 个方案对比与一期验收标准见 [SECURITY.md](SECURITY.md)。
+
 **证据**
 - CSRF 令牌在进程启动时生成一次，并明文注入首页 HTML（`core/server.py` 的 `_serve_static`）。
 - 校验只比对这一个头 + 本机 Origin（`_check_api_auth`）。
