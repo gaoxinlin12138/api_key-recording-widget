@@ -97,8 +97,21 @@
 打包前依次执行，任一步失败即中断，**不会产出 Release**：
 
 1. `Run tests` —— 全部单元 + HTTP 测试
-2. `Project self-check --strict` —— 死 import、重复常量
+2. `Project self-check --strict` —— 死 import、重复常量、**前端语法与编码**
 3. 构建文件夹版 → 便携 ZIP → 安装包 → SHA256 → 发布
+
+### 4.3.1 编码红线（2026-11-05 事故）
+
+发 1.3.1 时，用 PowerShell 的 `Get-Content -Raw` / `Set-Content` 对 `web/js/views.js`
+做版本号替换：文件被按系统代码页（GBK）读入，再以 UTF-8 写出，中文全成乱码，
+JS 语法被破坏，**安装后卡在启动画面**，而且 66 个 Python 测试全绿——完全没拦住。
+
+因此：
+
+- **禁止**用 `Get-Content`/`Set-Content`/`-replace` 批量改含中文的源文件；
+  用编辑器或定点编辑，确需脚本时显式 `-Encoding utf8` 且先读后校验。
+- 任何改完前端文件的操作，**必须**跑 `python tools/check_project.py --strict`。
+- 发版前额外确认：`node --check web/js/*.js` 全部通过、且打包产物能**截图**看到界面。
 
 ### 4.3 自检脚本查什么
 

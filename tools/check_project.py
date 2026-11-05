@@ -7,6 +7,8 @@
 error（会让 --strict 失败）：
   - core/ 或 tests/ 里存在未使用的顶层 import
   - 两个以上前端文件重复定义同名顶层常量
+  - web/js/*.js 存在语法错误（需本机有 node；没有则跳过）
+  - 前端文件带 UTF-8 BOM 或含替换字符（U+FFFD）
 
 warning（只提示）：
   - CSS 里定义了但 HTML/JS 从不使用的类
@@ -18,6 +20,8 @@ from __future__ import annotations
 
 import ast
 import re
+import shutil
+import subprocess
 import sys
 from collections import Counter
 from pathlib import Path
@@ -109,6 +113,65 @@ def check_css(sources: dict[str, str]) -> None:
         warnings.append(f"选择器 `{sel}` 被重复定义 {count} 次")
 
 
+def check_js_syntax() -> None:
+    """用 node --check 解析前端模块，并拦住 BOM / 替换字符 / 典型乱码。
+
+    背景：2026-11-05 发 1.3.1 时，用 PowerShell 的 Get-Content/Set-Content
+    对 views.js 做版本号替换，文件被按 GBK 读入再以 UTF-8 写出，中文变成乱码、
+    JS 语法被破坏，导致安装后卡在启动画面。仅靠 Python 测试发现不了。
+    """
+    node = shutil.which("node")
+    for path in JS_FILES:
+        raw = path.read_bytes()
+        if raw.startswith(b"\xef\xbb\xbf"):
+            errors.append(f"web/js/{path.name} 带 UTF-8 BOM（应为无 BOM 的 UTF-8）")
+        text = raw.decode("utf-8", errors="replace")
+        if "\ufffd" in text:
+            errors.append(f"web/js/{path.name} 含替换字符 U+FFFD（疑似编码损坏）")
+        if looks_mojibake(text):
+            errors.append(
+                f"web/js/{path.name} 疑似编码损坏（GBK/UTF-8 混淆，中文已成乱码）"
+            )
+    if not node:
+        warnings.append("未找到 node，跳过 JS 语法检查")
+        return
+    for path in JS_FILES:
+        result = subprocess.run(
+            [node, "--check", str(path)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if result.returncode != 0:
+            detail = next(
+                (line.strip() for line in (result.stderr or "").splitlines() if line.strip()),
+                "解析失败",
+            )
+            errors.append(f"web/js/{path.name} 语法错误：{detail}")
+
+
+#: UTF-8 中文被当成 GBK 解码后，几乎必然出现的标志性汉字
+MOJIBAKE_MARKERS = ("锛", "鍏", "鐢", "閽", "銆", "鍜", "浣", "鏄", "缁", "浠", "鏂")
+
+
+def looks_mojibake(text: str) -> bool:
+    hits = sum(text.count(marker) for marker in MOJIBAKE_MARKERS)
+    return hits >= 3
+
+
+def check_text_files() -> None:
+    """同一套乱码检测也覆盖 HTML/CSS/Markdown，避免同类事故从别的文件溜进来。"""
+    extras = [WEB / "index.html", WEB / "styles.css", WEB / "favicon.svg"]
+    extras += [ROOT / "README.md", ROOT / "CHANGELOG.md"]
+    for path in extras:
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if looks_mojibake(text):
+            errors.append(f"{path.relative_to(ROOT)} 疑似编码损坏（中文已成乱码）")
+
+
 # ---------------------------------------------------------------- main
 def main() -> int:
     # Windows 上的 CI 控制台可能不是 UTF-8（cp1252/cp936），直接 print 中文会抛
@@ -120,6 +183,8 @@ def main() -> int:
             pass
 
     check_python_imports()
+    check_js_syntax()
+    check_text_files()
     sources = read_js()
     check_js_duplicate_consts(sources)
     check_js_unused_exports(sources)
