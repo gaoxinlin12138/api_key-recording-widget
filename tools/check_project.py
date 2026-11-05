@@ -113,6 +113,27 @@ def check_css(sources: dict[str, str]) -> None:
         warnings.append(f"选择器 `{sel}` 被重复定义 {count} 次")
 
 
+def check_views_render() -> None:
+    """跑 tools/check_views.mjs，验证四个视图在有/无数据下都能渲染。"""
+    node = shutil.which("node")
+    script = ROOT / "tools" / "check_views.mjs"
+    if not node or not script.exists():
+        warnings.append("未找到 node 或 check_views.mjs，跳过前端渲染检查")
+        return
+    result = subprocess.run(
+        [node, str(script)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=str(ROOT),
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip().splitlines()
+        first = detail[0] if detail else "渲染失败"
+        errors.append(f"前端渲染检查失败：{first}")
+
+
 def check_js_syntax() -> None:
     """用 node --check 解析前端模块，并拦住 BOM / 替换字符 / 典型乱码。
 
@@ -185,6 +206,7 @@ def main() -> int:
     check_python_imports()
     check_js_syntax()
     check_text_files()
+    check_views_render()
     sources = read_js()
     check_js_duplicate_consts(sources)
     check_js_unused_exports(sources)
