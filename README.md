@@ -98,18 +98,11 @@ dist\APIKeyLedger\API钥匙簿.exe
 - **发给别人前，先删除 `dist\APIKeyLedger\data`**
 - `build_exe.bat` 在重新打包前会自动备份并恢复 `dist\APIKeyLedger\data`
 
-### 单文件版（旧版本兼容）
+### 单文件版（仅历史版本）
 
-v1.1.0 及之前发布过单文件版。v1.2.0 起不再作为正式 Release 资产发布，但源码仍可构建：
+v1.1.0 及之前发布过单文件版 exe。v1.2.0 起不再作为正式 Release 资产发布，源码中的单文件打包脚本也已移除；此前下载的旧版 exe 仍可运行，数据位于 `%LOCALAPPDATA%\ApiKeyLedger\data`。
 
-```text
-build_onefile.bat
-```
-
-单文件版：
-
-- 只有一个 exe，数据在 `%LOCALAPPDATA%\ApiKeyLedger\data`
-- 启动比文件夹版慢，容易被 SmartScreen/杀软误报
+- 只有一个 exe，启动比文件夹版慢，容易被 SmartScreen/杀软误报
 - 适合临时便携使用，不推荐作为主安装方式
 
 未签名的 exe 首次运行可能被 SmartScreen 提示，个人自用点“更多信息 → 仍要运行”即可；要分发给别人，建议做代码签名。
@@ -161,7 +154,6 @@ SHA256SUMS.txt
 ```text
 build_exe.bat        # 文件夹式构建，输出 dist\APIKeyLedger\
 build_installer.bat  # 文件夹式安装包，输出 dist\installer\APIKeyLedger-*-setup.exe
-build_onefile.bat    # 可选，旧单文件版，输出 dist\API钥匙簿.exe
 ```
 
 脚本会：
@@ -407,13 +399,10 @@ tests/
 docs/                   截图
 data/                   运行时数据（已 gitignore）
 api_key_ledger.spec         文件夹式 PyInstaller 配置
-api_key_ledger_onefile.spec 旧单文件版 PyInstaller 配置
 installer.iss               Inno Setup 文件夹式安装包配置
 installed.marker            安装版标记（让数据固定走 AppData）
 build_exe.bat               便携文件夹版打包入口
 build_exe.ps1               便携文件夹版打包逻辑（备份/恢复数据）
-build_onefile.bat           单文件版打包入口
-build_onefile.ps1           单文件版打包逻辑
 build_installer.bat         安装包打包入口
 build_installer.ps1         安装包打包逻辑
 tools/set_version.py        设置版本号
