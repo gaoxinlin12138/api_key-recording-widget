@@ -702,11 +702,23 @@ export function settingsView(state) {
           <div class="banner banner-warn">${icon("alert", 15)}<div><strong>当前为明文保存模式。</strong>数据库和备份中的 Key 不再加密，任何能访问这些文件的人都可以读取。</div></div>
           <div class="settings-block">
             <div class="info-label">数据目录</div>
+            ${
+              app.data_dir_warning
+                ? `<div class="banner banner-error">${icon("alert", 15)}<div><strong>原数据目录不可用，已临时改用默认目录。</strong><br>${esc(
+                    app.data_dir_warning
+                  )}<br>插回原来的盘或选择一个新的数据目录即可恢复。</div></div>`
+                : ""
+            }
             <div class="data-path">${icon("database", 14)} ${esc(app.data_path || "data")}</div>
             <div class="btn-row" style="margin:10px 0 4px">
               <button class="btn btn-secondary btn-sm" data-action="change-data-dir" ${
                 app.data_dir_changeable === false ? "disabled" : ""
               }>${icon("folder", 14)} 更改数据目录</button>
+              ${
+                app.data_dir_changeable !== false && app.data_dir_source !== "default"
+                  ? `<button class="btn btn-ghost btn-sm" data-action="reset-data-dir">恢复默认目录</button>`
+                  : ""
+              }
               <span class="faint" style="font-size:11px">${
                 app.data_dir_changeable === false
                   ? "当前用 --db 参数启动，只能在命令行指定。"

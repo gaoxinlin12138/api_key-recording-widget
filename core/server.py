@@ -58,6 +58,8 @@ class Application:
         native: bool = False,
         config_file: Path | None = None,
         data_dir_source: str = "default",
+        data_dir_warning: str | None = None,
+        default_data_dir: Path | None = None,
     ):
         self.base_dir = Path(base_dir)
         self.web_dir = Path(web_dir) if web_dir else self.base_dir / "web"
@@ -66,6 +68,8 @@ class Application:
         self.data_dir = self.db_path.parent
         self.config_file = Path(config_file) if config_file else None
         self.data_dir_source = data_dir_source
+        self.data_dir_warning = data_dir_warning
+        self.default_data_dir = Path(default_data_dir) if default_data_dir else None
         self.store = Store(self.db_path)
         self.csrf_token = secrets.token_urlsafe(32)
         self.port = 0
@@ -166,6 +170,7 @@ class Application:
             "version": APP_VERSION,
             "data_path": str(self.data_dir),
             "data_dir_source": self.data_dir_source,
+            "data_dir_warning": self.data_dir_warning,
             "data_dir_changeable": self.config_file is not None,
             "clipboard_available": self.clipboard.available,
             "clipboard_enabled": self.clipboard.enabled,
@@ -179,15 +184,32 @@ class Application:
     # ------------------------------------------------------------------
     # data directory
     # ------------------------------------------------------------------
-    def change_data_dir(self, raw_path: str) -> dict[str, Any]:
+    def change_data_dir(self, raw_path: str, reset: bool = False) -> dict[str, Any]:
         """Move the database to another folder and use it from now on.
 
-        The old file is left in place as a manual fallback; nothing is deleted.
+        With ``reset=True`` the custom setting is cleared instead: the app keeps
+        running on the current database and returns to the default location on
+        the next start.  The old file is left in place as a manual fallback;
+        nothing is deleted.
         """
         if self.config_file is None:
             raise ApiError(
                 "当前是命令行指定数据库启动的，不能在界面里改数据目录。"
             )
+        if reset:
+            from .config import clear_data_dir
+
+            clear_data_dir(self.config_file.parent)
+            self.data_dir_warning = None
+            self.data_dir_source = "default"
+            return {
+                "ok": True,
+                "unchanged": True,
+                "reset": True,
+                "restart_required": True,
+                "data_dir": str(self.data_dir),
+                "db_path": str(self.db_path),
+            }
         text = (raw_path or "").strip().strip('"')
         if not text:
             raise ApiError("请填写新的数据目录。")
@@ -786,7 +808,12 @@ class Handler(BaseHTTPRequestHandler):
 
         if method == "POST" and path == "/api/data-dir":
             body = self._read_body()
-            self._send_json(200, app.change_data_dir(str(body.get("path") or "")))
+            self._send_json(
+                200,
+                app.change_data_dir(
+                    str(body.get("path") or ""), reset=bool(body.get("reset"))
+                ),
+            )
             return
 
         if method == "POST" and path == "/api/background/upload":
@@ -911,6 +938,8 @@ def start_server(
     native: bool = False,
     config_file: Path | None = None,
     data_dir_source: str = "default",
+    data_dir_warning: str | None = None,
+    default_data_dir: Path | None = None,
 ) -> RunningServer:
     """Start the local server in a background thread and return a handle."""
     app = Application(
@@ -920,6 +949,8 @@ def start_server(
         native=native,
         config_file=config_file,
         data_dir_source=data_dir_source,
+        data_dir_warning=data_dir_warning,
+        default_data_dir=default_data_dir,
     )
     handler = _build_handler(app)
     server = _find_server(host, port, handler)
@@ -945,6 +976,8 @@ def run_server(
     web_dir: Path | None = None,
     config_file: Path | None = None,
     data_dir_source: str = "default",
+    data_dir_warning: str | None = None,
+    default_data_dir: Path | None = None,
 ) -> None:
     running = start_server(
         base_dir=base_dir,
@@ -954,6 +987,8 @@ def run_server(
         web_dir=web_dir,
         config_file=config_file,
         data_dir_source=data_dir_source,
+        data_dir_warning=data_dir_warning,
+        default_data_dir=default_data_dir,
     )
     print(f"\n{APP_NAME} 已启动：{running.url}")
     print(f"数据文件：{db_path}")

@@ -11,8 +11,10 @@ from core.config import (
     ENV_VAR,
     clear_data_dir,
     config_file,
+    is_usable_dir,
     read_data_dir,
     resolve_data_dir,
+    resolve_data_dir_safe,
     write_data_dir,
 )
 from core.importer import parse_pasted, provider_from_title
@@ -329,6 +331,47 @@ class ConfigTests(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def _blocked_path(self):
+        """造一个不可用路径：把一个普通文件当目录的上级。"""
+        blocker = self.app_dir / "blocker"
+        blocker.write_bytes(b"x")
+        return blocker / "data"
+
+    def test_usable_dir_is_accepted(self):
+        self.assertTrue(is_usable_dir(self.app_dir / "fresh"))
+
+    def test_path_under_a_file_is_not_usable(self):
+        self.assertFalse(is_usable_dir(self._blocked_path()))
+
+    def test_unusable_config_falls_back_to_default(self):
+        bad = self._blocked_path()
+        write_data_dir(self.app_dir, bad)
+        resolved, source, fallback = resolve_data_dir_safe(
+            self.app_dir, self.default, env={}
+        )
+        self.assertEqual(resolved, self.default)
+        self.assertEqual(source, "default")
+        self.assertEqual(fallback, str(bad))
+
+    def test_usable_config_is_kept_by_safe_resolver(self):
+        good = self.app_dir / "custom"
+        write_data_dir(self.app_dir, good)
+        resolved, source, fallback = resolve_data_dir_safe(
+            self.app_dir, self.default, env={}
+        )
+        self.assertEqual(resolved, good)
+        self.assertEqual(source, "config")
+        self.assertIsNone(fallback)
+
+    def test_unusable_env_falls_back_to_default(self):
+        bad = self._blocked_path()
+        resolved, source, fallback = resolve_data_dir_safe(
+            self.app_dir, self.default, env={ENV_VAR: str(bad)}
+        )
+        self.assertEqual(resolved, self.default)
+        self.assertEqual(source, "default")
+        self.assertEqual(fallback, str(bad))
 
     def test_default_when_nothing_configured(self):
         resolved, source = resolve_data_dir(self.app_dir, self.default, env={})

@@ -27,6 +27,8 @@ class ServerTestCase(unittest.TestCase):
 
     #: 子类置 True 时启用"界面改数据目录"能力（需要配置文件路径）
     enable_config = False
+    #: 子类可设置一个"回退警告"字符串，用于验证 state 里的提示
+    data_dir_warning: str | None = None
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -41,6 +43,7 @@ class ServerTestCase(unittest.TestCase):
             port=0,
             web_dir=WEB_DIR,
             config_file=cls.config_path,
+            data_dir_warning=cls.data_dir_warning,
         )
         cls.base = cls.running.url.rstrip("/")
         with urllib.request.urlopen(f"{cls.base}/", timeout=10) as response:
@@ -415,12 +418,32 @@ class DataDirTests(ServerTestCase):
         self.assertEqual(status, 400)
         self.assertIn("绝对路径", payload["error"])
 
+    def test_reset_clears_custom_config(self) -> None:
+        status, payload = self.request("POST", "/api/data-dir", {"reset": True})
+        self.assertEqual(status, 200, payload)
+        self.assertTrue(payload.get("reset"))
+        self.assertTrue(payload.get("restart_required"))
+        self.assertFalse(self.config_path.exists())
+
     def test_same_dir_is_noop(self) -> None:
         _, state = self.request("GET", "/api/state")
         current = state["app"]["data_path"]
         status, payload = self.request("POST", "/api/data-dir", {"path": current})
         self.assertEqual(status, 200)
         self.assertTrue(payload.get("unchanged"))
+
+
+class DataDirWarningTests(ServerTestCase):
+    """配置的目录不可用时，启动要能继续，并把警告带给界面。"""
+
+    enable_config = True
+    data_dir_warning = r"Z:\not-mounted\data"
+
+    def test_warning_is_exposed_to_ui(self) -> None:
+        status, state = self.request("GET", "/api/state")
+        self.assertEqual(status, 200)
+        self.assertEqual(state["app"]["data_dir_warning"], self.data_dir_warning)
+        self.assertTrue(state["app"]["data_dir_changeable"])
 
 
 if __name__ == "__main__":

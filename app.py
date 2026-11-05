@@ -64,11 +64,15 @@ def _default_data_dir() -> Path:
     return Path(__file__).resolve().parent / "data"
 
 
-def _data_dir(app_dir: Path) -> tuple[Path, str]:
-    """Resolve the data directory: env var -> config file -> default."""
-    from core.config import resolve_data_dir
+def _data_dir(app_dir: Path) -> tuple[Path, str, str | None]:
+    """Resolve the data directory: env var -> config file -> default.
 
-    return resolve_data_dir(app_dir, _default_data_dir())
+    配置指向不可用的目录（U 盘拔了、文件夹被删、网络盘断开）时回退到默认目录，
+    并把被拒绝的路径作为第三个返回值带出去，供界面提示。
+    """
+    from core.config import resolve_data_dir_safe
+
+    return resolve_data_dir_safe(app_dir, _default_data_dir())
 
 
 def _setup_logging(data_dir: Path) -> None:
@@ -88,7 +92,7 @@ def _setup_logging(data_dir: Path) -> None:
 def main() -> None:
     app_dir = _app_dir()
     resource_dir = _resource_dir()
-    data_dir, data_source = _data_dir(app_dir)
+    data_dir, data_source, data_dir_warning = _data_dir(app_dir)
 
     from core.version import __version__
 
@@ -137,6 +141,8 @@ def main() -> None:
                 port=port,
                 config_file=config_path,
                 data_dir_source=data_source,
+                data_dir_warning=data_dir_warning,
+                default_data_dir=_default_data_dir(),
             )
         else:
             from core.server import run_server
@@ -149,6 +155,8 @@ def main() -> None:
                 open_browser=not args.no_browser,
                 config_file=config_path,
                 data_dir_source=data_source,
+                data_dir_warning=data_dir_warning,
+                default_data_dir=_default_data_dir(),
             )
     except Exception:
         logging.exception("Application failed to start")

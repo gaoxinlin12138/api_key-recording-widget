@@ -2207,6 +2207,7 @@ document.addEventListener("click", async (event) => {
       "export",
       "open-data-dir",
       "change-data-dir",
+      "reset-data-dir",
       "clear-search",
       "sidebar-toggle",
       "clipboard-accept",
@@ -2316,6 +2317,26 @@ document.addEventListener("click", async (event) => {
       toast("已打开数据文件夹", "ok");
     } else if (action === "change-data-dir") {
       changeDataDir();
+    } else if (action === "reset-data-dir") {
+      const confirmed = await confirmDialog({
+        title: "恢复默认数据目录？",
+        message:
+          "会清除「自定义数据目录」这个设置，重启后回到默认位置。当前数据库不会被删除，也不会被移动。",
+        confirmText: "恢复默认",
+        danger: false,
+      });
+      if (confirmed) {
+        await withBusy(actionEl, "处理中…", async () => {
+          try {
+            await api("/api/data-dir", { method: "POST", body: { reset: true } });
+            toast("已清除自定义目录，重启后生效", "ok");
+            await loadState();
+            renderRoute({ preserveScroll: true });
+          } catch (error) {
+            toast(error.message, "err");
+          }
+        });
+      }
     } else if (action === "clear-search") {
       state.search = "";
       const input = $("#search-input");

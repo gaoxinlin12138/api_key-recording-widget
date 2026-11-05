@@ -90,3 +90,41 @@ def resolve_data_dir(
     if configured is not None:
         return configured, "config"
     return Path(default_dir), "default"
+
+
+def is_usable_dir(path: Path) -> bool:
+    """True when the directory exists (or can be created) and is writable."""
+    target = Path(path)
+    anchor = target.anchor
+    if anchor:
+        # 盘符/UNC 根不存在时，mkdir 也会失败；先给出更快的判断
+        if not Path(anchor).exists():
+            return False
+    try:
+        target.mkdir(parents=True, exist_ok=True)
+        probe = target / ".write-probe"
+        probe.write_bytes(b"")
+        probe.unlink()
+    except OSError:
+        return False
+    return True
+
+
+def resolve_data_dir_safe(
+    app_dir: Path,
+    default_dir: Path,
+    env: dict[str, str] | None = None,
+) -> tuple[Path, str, str | None]:
+    """Like resolve_data_dir, but never returns an unusable directory.
+
+    Returns ``(data_dir, source, fallback_from)``.  When the configured or
+    environment directory cannot be used (removed USB drive, deleted folder,
+    disconnected network share), it falls back to the default directory and
+    reports the rejected path in ``fallback_from`` so the UI can explain it.
+    """
+    resolved, source = resolve_data_dir(app_dir, default_dir, env)
+    if source == "default":
+        return resolved, source, None
+    if is_usable_dir(resolved):
+        return resolved, source, None
+    return Path(default_dir), "default", str(resolved)

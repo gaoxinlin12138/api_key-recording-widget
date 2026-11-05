@@ -131,6 +131,8 @@ def run_desktop(
     port: int = 8765,
     config_file: Path | None = None,
     data_dir_source: str = "default",
+    data_dir_warning: str | None = None,
+    default_data_dir: Path | None = None,
 ) -> None:
     running = start_server(
         base_dir=base_dir,
@@ -140,6 +142,8 @@ def run_desktop(
         native=True,
         config_file=config_file,
         data_dir_source=data_dir_source,
+        data_dir_warning=data_dir_warning,
+        default_data_dir=default_data_dir,
     )
     api = DesktopApi()
     api._running = running
