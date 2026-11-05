@@ -17,6 +17,11 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      # Windows runner 的控制台默认不是 UTF-8，脚本里的中文输出会抛
+      # UnicodeEncodeError 并让步骤以退出码 1 失败。
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
     steps:
       - name: Checkout
         uses: actions/checkout@v4

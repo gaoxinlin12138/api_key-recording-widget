@@ -111,6 +111,14 @@ def check_css(sources: dict[str, str]) -> None:
 
 # ---------------------------------------------------------------- main
 def main() -> int:
+    # Windows 上的 CI 控制台可能不是 UTF-8（cp1252/cp936），直接 print 中文会抛
+    # UnicodeEncodeError 并把退出码变成 1。这里强制用 UTF-8，无法编码时降级替换。
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
     check_python_imports()
     sources = read_js()
     check_js_duplicate_consts(sources)
