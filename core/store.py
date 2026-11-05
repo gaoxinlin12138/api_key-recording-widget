@@ -175,44 +175,6 @@ class Store:
             row = conn.execute("SELECT * FROM models WHERE id=?", (db_id,)).fetchone()
             return self._public_model(row)
 
-    def update_model(self, model_id: str, data: dict[str, Any]) -> dict[str, Any]:
-        with self._write_lock, connect(self.db_path) as conn:
-            row = conn.execute("SELECT * FROM models WHERE id=?", (model_id,)).fetchone()
-            if row is None:
-                raise StoreError(f"模型不存在：{model_id}")
-            fields: dict[str, Any] = {}
-            if "display_name" in data:
-                fields["display_name"] = (data.get("display_name") or "").strip() or row["model_id"]
-            if "capabilities" in data:
-                fields["capabilities"] = json.dumps(
-                    self._clean_capabilities(data.get("capabilities")), ensure_ascii=False
-                )
-            if "api_style" in data:
-                style = (data.get("api_style") or "").strip()
-                if style not in ALLOWED_STYLES:
-                    raise StoreError(f"不支持的调用方式：{style}")
-                fields["api_style"] = style
-            if "base_url" in data:
-                fields["base_url"] = normalize_base_url(data.get("base_url"))
-            if "context_window" in data:
-                value = data.get("context_window")
-                fields["context_window"] = int(value) if value not in (None, "") else None
-            if "notes" in data:
-                fields["notes"] = (data.get("notes") or "").strip()
-            if "enabled" in data:
-                fields["enabled"] = 1 if data.get("enabled") else 0
-            if not fields:
-                return self._public_model(row)
-            fields["updated_at"] = utc_now()
-            assignments = ", ".join(f"{key}=?" for key in fields)
-            conn.execute(
-                f"UPDATE models SET {assignments} WHERE id=?",
-                [*fields.values(), model_id],
-            )
-            conn.commit()
-            updated = conn.execute("SELECT * FROM models WHERE id=?", (model_id,)).fetchone()
-            return self._public_model(updated)
-
     def delete_model(self, model_id: str) -> dict[str, Any]:
         with self._write_lock, connect(self.db_path) as conn:
             row = conn.execute("SELECT * FROM models WHERE id=?", (model_id,)).fetchone()

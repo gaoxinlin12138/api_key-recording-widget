@@ -505,10 +505,6 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, app.state())
             return
 
-        if method == "GET" and path == "/api/health":
-            self._send_json(200, {"ok": True, "version": APP_VERSION})
-            return
-
         if method == "POST" and path == "/api/import/parse":
             body = self._read_body()
             self._send_json(200, parse_pasted(body.get("text", "")))
@@ -555,24 +551,9 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(201, {"model": model})
             return
 
-        match = re.fullmatch(r"/api/models/([A-Za-z0-9_:\-]+)", path)
-        if match:
-            if method == "PATCH":
-                body = self._read_body()
-                model = app.store.update_model(match.group(1), body)
-                self._send_json(200, {"model": model})
-                return
-            if method == "DELETE":
-                result = app.store.delete_model(match.group(1))
-                self._send_json(200, result)
-                return
-
         match = re.fullmatch(r"/api/keys/([A-Za-z0-9_\-]+)", path)
         if match:
             key_id = match.group(1)
-            if method == "GET":
-                self._send_json(200, {"key": app.store.get_key_public(key_id)})
-                return
             if method == "PATCH":
                 body = self._read_body()
                 key = app.store.update_key(key_id, body)
@@ -651,14 +632,6 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, {"balance": balance})
             return
 
-        match = re.fullmatch(r"/api/keys/([A-Za-z0-9_\-]+)/balance-history", path)
-        if match and method == "GET":
-            key_id = match.group(1)
-            self._send_json(
-                200, {"history": app.store.balance_history(key_id, limit=50)}
-            )
-            return
-
         match = re.fullmatch(r"/api/keys/([A-Za-z0-9_\-]+)/copied", path)
         if match and method == "POST":
             key_id = match.group(1)
@@ -675,10 +648,6 @@ class Handler(BaseHTTPRequestHandler):
         if method == "POST" and path == "/api/snippets":
             body = self._read_body()
             self._send_json(200, app.build_snippet(body))
-            return
-
-        if method == "GET" and path == "/api/settings":
-            self._send_json(200, {"settings": app.store.get_settings()})
             return
 
         if method == "PATCH" and path == "/api/settings":
