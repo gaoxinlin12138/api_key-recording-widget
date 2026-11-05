@@ -1,12 +1,34 @@
 # Changelog
 
-## Unreleased
+## 1.3.0 — 2026-11-05
 
-- Changed key storage from Windows DPAPI to portable plaintext SQLite.
-- Existing DPAPI databases migrate on first launch and keep an encrypted safety copy.
-- Added "Restore database backup" in Settings → Data & Backup.
-- Backups and the database can now be moved between computers; they contain plaintext keys and must be protected.
-- Redesigned the dashboard, settings, search preview, update dialog, add-key dialog, backgrounds and glass styling.
+### 新增
+
+- 总览页恢复「最近活动」时间线：添加 Key、查看 Key、复制片段、更新余额都会留下记录。
+
+### 变更
+
+- Key 改为以明文保存在本机 SQLite（不再使用 Windows DPAPI）。旧加密库首次启动会自动迁移，并在同目录保留一份加密安全副本。
+- 数据库与备份现在可以在电脑之间迁移；它们包含明文 Key，请自行限制数据目录的访问权限。
+- 设置 → 数据与备份 新增「恢复数据库备份」；恢复前会自动备份当前库。
+- 重新设计了总览、设置、搜索预览、更新弹窗、添加 Key 弹窗，以及背景与玻璃样式。
+
+### 清理
+
+- 删除前端三份从未被调用的遗留视图（约 523 行）与“快速导入”残留代码。
+- 删除 6 个无调用方的 HTTP 接口：`/api/health`、`GET /api/keys/{id}`、`GET /api/keys/{id}/balance-history`、`GET /api/settings`、`PATCH /api/models/{id}`、`DELETE /api/models/{id}`。
+- 删除无用文件：`docs/mockups/`（13 个设计稿）、`assets/app.png`、单文件打包链（`api_key_ledger_onefile.spec` / `build_onefile.bat` / `build_onefile.ps1`）。
+- 清理 Python 死函数 5 处、死导入 3 处；合并两处重复的片段格式常量。
+- 删除 105 条针对已下线界面的死 CSS 规则（`styles.css` 减少约 11%）。
+
+### 测试
+
+- 新增 HTTP 层测试 27 个（路由、CSRF/Host 校验、备份恢复、错误码），测试总数 28 → 55。
+- CI 在打包之前强制执行测试，测试失败即中断发布。
+
+### 兼容性
+
+- 已发布的 v1.1.0 单文件版 exe 仍可正常启动并沿用原数据目录；本次只是移除了构建脚本，运行期判定逻辑保留。
 
 ## 1.2.0 — 2026-11-02
 

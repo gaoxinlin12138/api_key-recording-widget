@@ -47,7 +47,7 @@ python app.py --port 8800 --no-browser
 v1.2.0 开始，Windows 安装包改为**文件夹式安装**：
 
 ```text
-dist\installer\APIKeyLedger-1.2.0-setup.exe
+dist\installer\APIKeyLedger-<版本号>-setup.exe
 ```
 
 安装后目录是：
@@ -115,22 +115,24 @@ v1.1.0 及之前发布过单文件版 exe。v1.2.0 起不再作为正式 Release
 
 1. 修改版本号：
    ```bash
-   python tools/set_version.py 1.2.0
+   python tools/set_version.py 1.3.0
    ```
 2. 更新 `CHANGELOG.md`
-3. 本地构建：
+3. 本地验证与构建：
    ```text
+   python -m unittest discover -s tests -v
    build_exe.bat
    build_installer.bat
    ```
 4. 提交并打 tag：
    ```bash
    git add .
-   git commit -m "release v1.2.0"
-   git tag v1.2.0
+   git commit -m "release v1.3.0"
+   git tag v1.3.0
    git push origin main --tags
    ```
 5. GitHub Actions 会自动：
+   - **运行测试（不通过则中断，不会出包）**
    - 构建文件夹式应用
    - 构建便携 ZIP
    - 构建安装包
@@ -142,8 +144,8 @@ v1.1.0 及之前发布过单文件版 exe。v1.2.0 起不再作为正式 Release
 如果不想用 Actions，也可以手动把 `dist\release\` 里的文件上传到一个 GitHub Release：
 
 ```text
-APIKeyLedger-1.2.0-portable.zip
-APIKeyLedger-1.2.0-setup.exe
+APIKeyLedger-1.3.0-portable.zip
+APIKeyLedger-1.3.0-setup.exe
 SHA256SUMS.txt
 ```
 

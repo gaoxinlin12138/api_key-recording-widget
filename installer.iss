@@ -1,8 +1,8 @@
-﻿; Inno Setup script for API Key Ledger.
+; Inno Setup script for API Key Ledger.
 ; Build with build_installer.bat (requires Inno Setup 6).
 
 #ifndef MyAppVersion
-  #define MyAppVersion "1.2.0"
+  #define MyAppVersion "1.3.0"
 #endif
 
 #define MyAppName "API 钥匙簿"
