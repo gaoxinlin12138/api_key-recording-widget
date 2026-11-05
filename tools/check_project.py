@@ -96,7 +96,9 @@ def check_css(sources: dict[str, str]) -> None:
     css = css_path.read_text(encoding="utf-8")
     corpus = (WEB / "index.html").read_text(encoding="utf-8") + "\n" + "\n".join(sources.values())
 
-    classes = sorted({c for c in re.findall(r"\.(-?[A-Za-z_][A-Za-z0-9_\-]*)", css)})
+    # data:image/svg+xml 里的 URL 片段会产生误报（如 xmlns 里的 org / w3），先剔除
+    css_for_classes = re.sub(r"url\([^)]*\)", "", css)
+    classes = sorted({c for c in re.findall(r"\.(-?[A-Za-z_][A-Za-z0-9_\-]*)", css_for_classes)})
     unused = [
         c for c in classes
         if not re.search(rf"(?<![\w-]){re.escape(c)}(?![\w-])", corpus)
