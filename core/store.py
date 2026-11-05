@@ -175,24 +175,6 @@ class Store:
             row = conn.execute("SELECT * FROM models WHERE id=?", (db_id,)).fetchone()
             return self._public_model(row)
 
-    def delete_model(self, model_id: str) -> dict[str, Any]:
-        with self._write_lock, connect(self.db_path) as conn:
-            row = conn.execute("SELECT * FROM models WHERE id=?", (model_id,)).fetchone()
-            if row is None:
-                raise StoreError(f"模型不存在：{model_id}")
-            if row["source"] == "catalog":
-                # Keep the catalogue row but hide it.  This survives restarts
-                # because database seeding never overwrites existing rows.
-                conn.execute(
-                    "UPDATE models SET enabled=0, updated_at=? WHERE id=?",
-                    (utc_now(), model_id),
-                )
-                conn.commit()
-                return {"disabled": True, "id": model_id}
-            conn.execute("DELETE FROM models WHERE id=?", (model_id,))
-            conn.commit()
-            return {"deleted": True, "id": model_id}
-
     def upsert_fetched_models(
         self, provider_id: str, fetched: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
@@ -515,14 +497,6 @@ class Store:
                 (key_id,),
             ).fetchone()
             return self._public_balance(row)
-
-    def balance_history(self, key_id: str, limit: int = 30) -> list[dict[str, Any]]:
-        with connect(self.db_path) as conn:
-            rows = conn.execute(
-                "SELECT * FROM balance_snapshots WHERE key_id=? ORDER BY checked_at DESC LIMIT ?",
-                (key_id, max(1, min(limit, 200))),
-            ).fetchall()
-            return [self._public_balance(row) for row in rows if row is not None]
 
     def mark_copied(
         self,

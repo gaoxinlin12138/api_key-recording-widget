@@ -759,7 +759,7 @@ export function settingsView(state) {
             <div><h2>关于</h2><p>${esc(app.name || "API 钥匙簿")}</p></div>
           </div>
           <div class="info-grid settings-info">
-            ${infoItem("版本", esc(app.version || "1.3.2"))}
+            ${infoItem("版本", esc(app.version || "1.3.3"))}
             ${infoItem("数据目录", `<span class="mono" style="font-size:11px">${esc(app.data_path || "")}</span>`)}
             ${infoItem("剪贴板监听", clipboardOn ? "已开启" : "已关闭")}
             ${infoItem("界面", app.native ? "桌面窗口" : "浏览器")}

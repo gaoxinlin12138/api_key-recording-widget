@@ -2,7 +2,7 @@
 ; Build with build_installer.bat (requires Inno Setup 6).
 
 #ifndef MyAppVersion
-  #define MyAppVersion "1.3.2"
+  #define MyAppVersion "1.3.3"
 #endif
 
 #define MyAppName "API 钥匙簿"

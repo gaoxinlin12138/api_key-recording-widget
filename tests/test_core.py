@@ -182,7 +182,6 @@ class StoreTests(unittest.TestCase):
             )
         self.store.add_balance(key["id"], {"amount": 12.5, "currency": "CNY"})
         self.assertEqual(self.store.latest_balance(key["id"])["amount"], 12.5)
-        self.assertEqual(len(self.store.balance_history(key["id"])), 1)
         self.assertGreater(len(self.store.backup_bytes()), 100)
         self.assertNotIn("sk-test", json.dumps(self.store.export_json(), ensure_ascii=False))
         self.store.delete_key(key["id"])
@@ -208,8 +207,6 @@ class StoreTests(unittest.TestCase):
             }
         )
         self.assertEqual(key["model_count"], 1)
-        self.store.delete_model(model["id"])
-        self.assertEqual(len(self.store.list_models("deepseek")), 2)
 
     def test_settings(self):
         settings = self.store.update_settings(
