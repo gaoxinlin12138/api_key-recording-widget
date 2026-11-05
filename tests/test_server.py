@@ -25,15 +25,22 @@ WEB_DIR = ROOT / "web"
 class ServerTestCase(unittest.TestCase):
     """起一个真实 HTTP 服务，用 urllib 走完整请求链路。"""
 
+    #: 子类置 True 时启用"界面改数据目录"能力（需要配置文件路径）
+    enable_config = False
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.tmp = tempfile.TemporaryDirectory()
         cls.db_path = Path(cls.tmp.name) / "ledger.db"
+        cls.config_path = (
+            Path(cls.tmp.name) / "ledger.config.json" if cls.enable_config else None
+        )
         cls.running = start_server(
             base_dir=ROOT,
             db_path=cls.db_path,
             port=0,
             web_dir=WEB_DIR,
+            config_file=cls.config_path,
         )
         cls.base = cls.running.url.rstrip("/")
         with urllib.request.urlopen(f"{cls.base}/", timeout=10) as response:
@@ -129,6 +136,15 @@ class RoutingTests(ServerTestCase):
     def test_unknown_static_returns_404(self) -> None:
         status, _ = self.request("GET", "/assets/js/nope.js", token=None)
         self.assertEqual(status, 404)
+
+    def test_data_dir_setting_disabled_without_config(self) -> None:
+        _, state = self.request("GET", "/api/state")
+        self.assertFalse(state["app"]["data_dir_changeable"])
+        status, payload = self.request(
+            "POST", "/api/data-dir", {"path": str(Path(self.tmp.name) / "elsewhere")}
+        )
+        self.assertEqual(status, 400)
+        self.assertIn("命令行", payload["error"])
 
 
 class AuthTests(ServerTestCase):
@@ -358,6 +374,53 @@ class ImportTests(ServerTestCase):
         status, payload = self.request("POST", "/api/import/parse", {"text": ""})
         self.assertEqual(status, 200)
         self.assertFalse(payload["ok"])
+
+
+class DataDirTests(ServerTestCase):
+    """界面里改数据目录：迁移、校验、配置落盘。"""
+
+    enable_config = True
+
+    def test_move_data_dir_keeps_keys(self) -> None:
+        key = self.create_key("迁移前", "sk-move-0001")
+        target = Path(self.tmp.name) / "moved"
+        status, payload = self.request("POST", "/api/data-dir", {"path": str(target)})
+        self.assertEqual(status, 200, payload)
+        self.assertFalse(payload["unchanged"])
+        self.assertTrue((target / "ledger.db").exists())
+
+        _, state = self.request("GET", "/api/state")
+        self.assertEqual(Path(state["app"]["data_path"]), target)
+        self.assertIn(key["id"], [item["id"] for item in state["keys"]])
+
+        config = json.loads(self.config_path.read_text(encoding="utf-8"))
+        self.assertEqual(Path(config["data_dir"]), target)
+
+    def test_rejects_empty_path(self) -> None:
+        status, _ = self.request("POST", "/api/data-dir", {"path": ""})
+        self.assertEqual(status, 400)
+
+    def test_rejects_occupied_target(self) -> None:
+        target = Path(self.tmp.name) / "occupied"
+        target.mkdir()
+        (target / "ledger.db").write_bytes(b"existing")
+        status, payload = self.request("POST", "/api/data-dir", {"path": str(target)})
+        self.assertEqual(status, 400)
+        self.assertIn("已经有", payload["error"])
+
+    def test_rejects_relative_path(self) -> None:
+        status, payload = self.request(
+            "POST", "/api/data-dir", {"path": "relative\\dir"}
+        )
+        self.assertEqual(status, 400)
+        self.assertIn("绝对路径", payload["error"])
+
+    def test_same_dir_is_noop(self) -> None:
+        _, state = self.request("GET", "/api/state")
+        current = state["app"]["data_path"]
+        status, payload = self.request("POST", "/api/data-dir", {"path": current})
+        self.assertEqual(status, 200)
+        self.assertTrue(payload.get("unchanged"))
 
 
 if __name__ == "__main__":

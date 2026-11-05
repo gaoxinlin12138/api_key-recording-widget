@@ -701,8 +701,23 @@ export function settingsView(state) {
           </div>
           <div class="banner banner-warn">${icon("alert", 15)}<div><strong>当前为明文保存模式。</strong>数据库和备份中的 Key 不再加密，任何能访问这些文件的人都可以读取。</div></div>
           <div class="settings-block">
+            <div class="info-label">数据目录</div>
             <div class="data-path">${icon("database", 14)} ${esc(app.data_path || "data")}</div>
-            <div class="settings-action-grid">
+            <div class="btn-row" style="margin:10px 0 4px">
+              <button class="btn btn-secondary btn-sm" data-action="change-data-dir" ${
+                app.data_dir_changeable === false ? "disabled" : ""
+              }>${icon("folder", 14)} 更改数据目录</button>
+              <span class="faint" style="font-size:11px">${
+                app.data_dir_changeable === false
+                  ? "当前用 --db 参数启动，只能在命令行指定。"
+                  : app.data_dir_source === "env"
+                  ? "当前由环境变量 API_KEY_LEDGER_DATA_DIR 指定。"
+                  : app.data_dir_source === "config"
+                  ? "当前为自定义目录。"
+                  : "当前为默认目录。"
+              }</span>
+            </div>
+            <div class="settings-action-grid" style="margin-top:14px">
               <button class="btn btn-secondary" data-action="backup">${icon("download", 15)} 下载数据库备份</button>
               <button class="btn btn-secondary" data-action="export">${icon("external", 15)} 导出 JSON（不含 Key）</button>
               <label class="btn btn-secondary file-btn">${icon("upload", 15)} 恢复数据库备份
@@ -711,6 +726,7 @@ export function settingsView(state) {
               <button class="btn btn-ghost" data-action="open-data-dir">${icon("folder", 15)} 打开数据文件夹</button>
             </div>
             <p class="field-hint">恢复会覆盖当前数据库，并先自动备份当前库。备份包含明文 Key，请妥善保管。</p>
+            <p class="field-hint">更改数据目录会把当前数据库<strong>复制</strong>到新位置并立即切换；原位置的文件保留不删，确认无误后可自行删除。</p>
           </div>
         </div>
 

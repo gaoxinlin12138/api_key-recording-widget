@@ -7,6 +7,14 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from core.catalog import PROVIDERS
+from core.config import (
+    ENV_VAR,
+    clear_data_dir,
+    config_file,
+    read_data_dir,
+    resolve_data_dir,
+    write_data_dir,
+)
 from core.importer import parse_pasted, provider_from_title
 from core.providers import BalanceNotSupported, _request_json, fetch_balance, fetch_models
 from core.security import protect, unprotect
@@ -309,6 +317,52 @@ class SecurityTests(unittest.TestCase):
     def test_empty(self):
         with self.assertRaises(ValueError):
             protect("")
+
+
+class ConfigTests(unittest.TestCase):
+    """数据目录的配置优先级：环境变量 > 配置文件 > 默认值。"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.app_dir = Path(self.tmp.name)
+        self.default = self.app_dir / "data"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_default_when_nothing_configured(self):
+        resolved, source = resolve_data_dir(self.app_dir, self.default, env={})
+        self.assertEqual(resolved, self.default)
+        self.assertEqual(source, "default")
+
+    def test_config_overrides_default(self):
+        custom = self.app_dir / "custom"
+        write_data_dir(self.app_dir, custom)
+        self.assertEqual(read_data_dir(self.app_dir), custom)
+        resolved, source = resolve_data_dir(self.app_dir, self.default, env={})
+        self.assertEqual(resolved, custom)
+        self.assertEqual(source, "config")
+
+    def test_env_beats_config(self):
+        write_data_dir(self.app_dir, self.app_dir / "custom")
+        env_dir = self.app_dir / "from-env"
+        resolved, source = resolve_data_dir(
+            self.app_dir, self.default, env={ENV_VAR: str(env_dir)}
+        )
+        self.assertEqual(resolved, env_dir)
+        self.assertEqual(source, "env")
+
+    def test_clear_removes_config(self):
+        write_data_dir(self.app_dir, self.app_dir / "custom")
+        clear_data_dir(self.app_dir)
+        self.assertIsNone(read_data_dir(self.app_dir))
+        self.assertFalse(config_file(self.app_dir).exists())
+
+    def test_broken_config_is_ignored(self):
+        config_file(self.app_dir).write_text("{not json", encoding="utf-8")
+        self.assertIsNone(read_data_dir(self.app_dir))
+        resolved, source = resolve_data_dir(self.app_dir, self.default, env={})
+        self.assertEqual(source, "default")
 
 
 class ProviderAdapterTests(unittest.TestCase):

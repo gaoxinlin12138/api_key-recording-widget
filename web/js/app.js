@@ -1767,7 +1767,91 @@ document.addEventListener("dblclick", (event) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// data directory
+// ---------------------------------------------------------------------------
+function changeDataDir() {
+  const current = state.app?.data_path || "";
+  const changeable = state.app?.data_dir_changeable !== false;
+  const canPick = Boolean(state.app?.native);
+  const body = `<form id="data-dir-form">
+    <div class="field">
+      <label class="field-label">新的数据目录（绝对路径）</label>
+      <input class="input mono" name="path" value="${esc(current)}" autofocus
+        placeholder="例如 D:\\ApiKeyLedger\\data">
+      <div class="field-hint">当前数据库会被复制到该目录，然后立即切换；原位置的文件保留不删。</div>
+    </div>
+    ${
+      canPick
+        ? `<div class="btn-row" style="margin-top:8px">
+            <button class="btn btn-ghost btn-sm" type="button" data-action="browse-data-dir">${icon(
+              "folder",
+              14
+            )} 选择文件夹…</button>
+          </div>`
+        : ""
+    }
+  </form>`;
 
+  openModal({
+    title: "更改数据目录",
+    subtitle: changeable ? "换一个文件夹存放数据库" : "当前启动方式不支持修改",
+    body,
+    width: "narrow",
+    footer: `<div class="foot-left">切换后界面会自动刷新。</div>
+      <div class="foot-actions">
+        <button class="btn btn-secondary" type="button" data-action="close-modal">取消</button>
+        <button class="btn btn-primary" type="submit" form="data-dir-form" ${
+          changeable ? "" : "disabled"
+        }>${icon("check", 15)} 迁移并切换</button>
+      </div>`,
+    onMount(dialog) {
+      const form = $("#data-dir-form", dialog);
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const value = String(new FormData(form).get("path") || "").trim();
+        if (!value) {
+          setModalError("请填写目录。");
+          return;
+        }
+        await withBusy(event.submitter, "迁移中…", async () => {
+          try {
+            const result = await api("/api/data-dir", {
+              method: "POST",
+              body: { path: value },
+            });
+            setModalError("");
+            closeModal(true);
+            toast(
+              result.unchanged ? "数据目录没有变化" : `已切换到 ${result.data_dir}`,
+              result.unchanged ? "warn" : "ok"
+            );
+            if (!result.unchanged) {
+              setTimeout(() => location.reload(), 900);
+            }
+          } catch (error) {
+            setModalError(error.message);
+          }
+        });
+      });
+      dialog.addEventListener("click", async (event) => {
+        const pick = event.target.closest('[data-action="browse-data-dir"]');
+        if (!pick) return;
+        event.preventDefault();
+        try {
+          const picked = await window.pywebview?.api?.pick_folder?.();
+          const input = $('input[name="path"]', dialog);
+          if (picked && input) {
+            input.value = picked;
+            if (modalState) modalState.dirty = true;
+          }
+        } catch (error) {
+          setModalError(error.message || "选择文件夹失败。");
+        }
+      });
+    },
+  });
+}
 
 async function saveSettings(form, button) {
   const data = new FormData(form);
@@ -2122,6 +2206,7 @@ document.addEventListener("click", async (event) => {
       "backup",
       "export",
       "open-data-dir",
+      "change-data-dir",
       "clear-search",
       "sidebar-toggle",
       "clipboard-accept",
@@ -2229,6 +2314,8 @@ document.addEventListener("click", async (event) => {
     } else if (action === "open-data-dir") {
       await api("/api/open-data-dir", { method: "POST" });
       toast("已打开数据文件夹", "ok");
+    } else if (action === "change-data-dir") {
+      changeDataDir();
     } else if (action === "clear-search") {
       state.search = "";
       const input = $("#search-input");

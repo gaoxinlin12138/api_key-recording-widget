@@ -53,10 +53,7 @@ def _local_vault_dir() -> Path:
     return root / "ApiKeyLedger" / "data"
 
 
-def _data_dir() -> Path:
-    override = os.environ.get("API_KEY_LEDGER_DATA_DIR")
-    if override:
-        return Path(override).expanduser()
+def _default_data_dir() -> Path:
     if _is_frozen():
         exe_dir = Path(sys.executable).resolve().parent
         # Installed builds (including folder installs) keep data outside the
@@ -65,6 +62,13 @@ def _data_dir() -> Path:
             return _local_vault_dir()
         return exe_dir / "data"
     return Path(__file__).resolve().parent / "data"
+
+
+def _data_dir(app_dir: Path) -> tuple[Path, str]:
+    """Resolve the data directory: env var -> config file -> default."""
+    from core.config import resolve_data_dir
+
+    return resolve_data_dir(app_dir, _default_data_dir())
 
 
 def _setup_logging(data_dir: Path) -> None:
@@ -84,8 +88,7 @@ def _setup_logging(data_dir: Path) -> None:
 def main() -> None:
     app_dir = _app_dir()
     resource_dir = _resource_dir()
-    data_dir = _data_dir()
-    _setup_logging(data_dir)
+    data_dir, data_source = _data_dir(app_dir)
 
     from core.version import __version__
 
@@ -112,6 +115,12 @@ def main() -> None:
 
     port = max(1024, min(args.port, 65535))
     db_path = Path(args.db) if args.db else data_dir / "ledger.db"
+    _setup_logging(db_path.parent)
+    # --db pins the database explicitly, so the in-app data-dir setting must
+    # stay disabled to avoid a setting that silently has no effect.
+    from core.config import config_file as _config_file
+
+    config_path = None if args.db else _config_file(app_dir)
     web_dir = resource_dir / "web"
     native = args.native or (_is_frozen() and not args.browser)
     if args.browser:
@@ -126,6 +135,8 @@ def main() -> None:
                 db_path=db_path,
                 web_dir=web_dir,
                 port=port,
+                config_file=config_path,
+                data_dir_source=data_source,
             )
         else:
             from core.server import run_server
@@ -136,6 +147,8 @@ def main() -> None:
                 web_dir=web_dir,
                 port=port,
                 open_browser=not args.no_browser,
+                config_file=config_path,
+                data_dir_source=data_source,
             )
     except Exception:
         logging.exception("Application failed to start")

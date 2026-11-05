@@ -56,12 +56,17 @@ class Application:
         db_path: Path,
         web_dir: Path | None = None,
         native: bool = False,
+        config_file: Path | None = None,
+        data_dir_source: str = "default",
     ):
         self.base_dir = Path(base_dir)
         self.web_dir = Path(web_dir) if web_dir else self.base_dir / "web"
         self.native = native
-        self.data_dir = db_path.parent
-        self.store = Store(db_path)
+        self.db_path = Path(db_path)
+        self.data_dir = self.db_path.parent
+        self.config_file = Path(config_file) if config_file else None
+        self.data_dir_source = data_dir_source
+        self.store = Store(self.db_path)
         self.csrf_token = secrets.token_urlsafe(32)
         self.port = 0
         self._pending: dict[str, dict[str, Any]] = {}
@@ -160,6 +165,8 @@ class Application:
             "name": APP_NAME,
             "version": APP_VERSION,
             "data_path": str(self.data_dir),
+            "data_dir_source": self.data_dir_source,
+            "data_dir_changeable": self.config_file is not None,
             "clipboard_available": self.clipboard.available,
             "clipboard_enabled": self.clipboard.enabled,
             "native": self.native,
@@ -168,6 +175,70 @@ class Application:
         }
         data["clipboard_pending"] = self.pending_list()
         return data
+
+    # ------------------------------------------------------------------
+    # data directory
+    # ------------------------------------------------------------------
+    def change_data_dir(self, raw_path: str) -> dict[str, Any]:
+        """Move the database to another folder and use it from now on.
+
+        The old file is left in place as a manual fallback; nothing is deleted.
+        """
+        if self.config_file is None:
+            raise ApiError(
+                "当前是命令行指定数据库启动的，不能在界面里改数据目录。"
+            )
+        text = (raw_path or "").strip().strip('"')
+        if not text:
+            raise ApiError("请填写新的数据目录。")
+        target_dir = Path(text).expanduser()
+        if not target_dir.is_absolute():
+            raise ApiError("请填写绝对路径，例如 D:\\ApiKeyLedger。")
+        if target_dir.resolve() == self.data_dir.resolve():
+            return {
+                "ok": True,
+                "unchanged": True,
+                "data_dir": str(self.data_dir),
+                "db_path": str(self.db_path),
+            }
+        target_db = target_dir / self.db_path.name
+        if target_db.exists():
+            raise ApiError(
+                f"目标目录里已经有 {target_db.name}，请换一个目录或先把它移走。"
+            )
+        try:
+            target_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise ApiError(f"无法创建目录：{exc}") from exc
+
+        payload = self.store.backup_bytes()
+        tmp = target_db.with_name(target_db.name + ".tmp")
+        try:
+            tmp.write_bytes(payload)
+            # A quick sanity check before switching over.
+            Store(tmp).list_providers()
+            tmp.replace(target_db)
+        except Exception as exc:  # noqa: BLE001
+            tmp.unlink(missing_ok=True)
+            target_db.unlink(missing_ok=True)
+            raise ApiError(f"写入新位置失败：{exc}") from exc
+
+        previous = str(self.db_path)
+        from .config import write_data_dir
+
+        write_data_dir(self.config_file.parent, target_dir)
+        self.db_path = target_db
+        self.data_dir = target_dir
+        self.data_dir_source = "config"
+        self.store = Store(target_db)
+        self.settings = self.store.get_settings()
+        return {
+            "ok": True,
+            "unchanged": False,
+            "data_dir": str(target_dir),
+            "db_path": str(target_db),
+            "previous_db": previous,
+        }
 
     def build_snippet(self, body: dict[str, Any]) -> dict[str, Any]:
         key_id = (body.get("key_id") or "").strip()
@@ -713,6 +784,11 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, app.store.export_json())
             return
 
+        if method == "POST" and path == "/api/data-dir":
+            body = self._read_body()
+            self._send_json(200, app.change_data_dir(str(body.get("path") or "")))
+            return
+
         if method == "POST" and path == "/api/background/upload":
             body = self._read_body()
             data_url = str(body.get("data_url") or "").strip()
@@ -833,9 +909,18 @@ def start_server(
     port: int = 8765,
     web_dir: Path | None = None,
     native: bool = False,
+    config_file: Path | None = None,
+    data_dir_source: str = "default",
 ) -> RunningServer:
     """Start the local server in a background thread and return a handle."""
-    app = Application(base_dir, db_path, web_dir=web_dir, native=native)
+    app = Application(
+        base_dir,
+        db_path,
+        web_dir=web_dir,
+        native=native,
+        config_file=config_file,
+        data_dir_source=data_dir_source,
+    )
     handler = _build_handler(app)
     server = _find_server(host, port, handler)
     actual_port = server.server_address[1]
@@ -858,6 +943,8 @@ def run_server(
     port: int = 8765,
     open_browser: bool = True,
     web_dir: Path | None = None,
+    config_file: Path | None = None,
+    data_dir_source: str = "default",
 ) -> None:
     running = start_server(
         base_dir=base_dir,
@@ -865,6 +952,8 @@ def run_server(
         host=host,
         port=port,
         web_dir=web_dir,
+        config_file=config_file,
+        data_dir_source=data_dir_source,
     )
     print(f"\n{APP_NAME} 已启动：{running.url}")
     print(f"数据文件：{db_path}")

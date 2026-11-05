@@ -114,12 +114,23 @@ class DesktopApi:
         Path(target).write_bytes(payload)
         return str(target)
 
+    def pick_folder(self) -> str:
+        """Let the user choose a folder (used by the data-directory setting)."""
+        if self._window is None:
+            return ""
+        result = self._window.create_file_dialog(webview.FileDialog.FOLDER)
+        if not result:
+            return ""
+        return str(result[0] if isinstance(result, (list, tuple)) else result)
+
 
 def run_desktop(
     base_dir: Path,
     db_path: Path,
     web_dir: Path,
     port: int = 8765,
+    config_file: Path | None = None,
+    data_dir_source: str = "default",
 ) -> None:
     running = start_server(
         base_dir=base_dir,
@@ -127,6 +138,8 @@ def run_desktop(
         web_dir=web_dir,
         port=port,
         native=True,
+        config_file=config_file,
+        data_dir_source=data_dir_source,
     )
     api = DesktopApi()
     api._running = running
