@@ -2430,40 +2430,12 @@ body[data-bg="aurora"] .platform-panel {
   background: linear-gradient(180deg, rgba(255, 253, 248, .62), rgba(255, 253, 248, .38));
 }
 
-/* U-shaped right corners of the active sidebar item */
-.nav-item.active::before,
-.nav-item.active::after {
-  content: "";
-  position: absolute;
-  right: 0;
-  width: 10px;
-  height: 10px;
-  background: #d5ecff;
-  pointer-events: none;
-}
-.nav-item.active::before {
-  top: 0;
-  border-bottom-left-radius: 10px;
-}
-.nav-item.active::after {
-  bottom: 0;
-  border-top-left-radius: 10px;
-}
+
+
 
 .sidebar { border-right: 0; }
 
-/* bottom side merges into the white content panel; only the top is an inset notch */
-.nav-item.active::after { display: none !important; }
 
-/* restore the matched bottom inset */
-.nav-item.active::after {
-  display: block !important;
-  bottom: 0;
-  top: auto;
-  border-top-left-radius: 10px;
-  border-bottom-left-radius: 0;
-  background: #d5ecff;
-}
 
 /* revert the experimental U-shaped connector */
 .nav-bridge { display: none !important; }
@@ -2477,8 +2449,7 @@ body[data-bg="aurora"] .platform-panel {
   box-shadow: none !important;
   animation: none !important;
 }
-.nav-item.active::before,
-.nav-item.active::after { display: none !important; }
+
 
 /* prevent scrollbar-induced layout shift between routes */
 html { scrollbar-gutter: stable; }
@@ -2511,41 +2482,15 @@ body { overflow-y: visible; }
   background: #fffdf8 !important;
   box-shadow: 0 6px 16px rgba(31, 58, 80, .08), inset 0 1px 0 rgba(255, 255, 255, .95) !important;
 }
-.nav-item.active::before,
-.nav-item.active::after {
-  display: block !important;
-  content: "";
-  position: absolute;
-  right: 0;
-  width: 8px;
-  height: 8px;
-  background: #fffdf8;
-  pointer-events: none;
-}
-.nav-item.active::before {
-  top: -8px;
-  border-top-left-radius: 8px;
-}
-.nav-item.active::after {
-  bottom: -8px;
-  border-bottom-left-radius: 8px;
-}
+
+
+
 
 /* larger open flanges for a visible U */
 .nav-section { gap: 12px; }
-.nav-item.active::before,
-.nav-item.active::after {
-  width: 12px;
-  height: 12px;
-}
-.nav-item.active::before {
-  top: -12px;
-  border-top-left-radius: 12px;
-}
-.nav-item.active::after {
-  bottom: -12px;
-  border-bottom-left-radius: 12px;
-}
+
+
+
 
 .sidebar-foot { gap: 14px; }
 
@@ -2558,68 +2503,21 @@ body { overflow-y: visible; }
   background: #fffdf8 !important;
   box-shadow: 0 6px 16px rgba(31, 58, 80, .08), inset 0 1px 0 rgba(255, 255, 255, .95) !important;
 }
-.nav-item.active::before,
-.nav-item.active::after {
-  display: block !important;
-  content: "";
-  position: absolute;
-  right: 0;
-  width: 10px;
-  height: 10px;
-  background: #d5ecff;
-  pointer-events: none;
-}
-.nav-item.active::before {
-  top: 0;
-  border-bottom-left-radius: 10px;
-}
-.nav-item.active::after {
-  bottom: 0;
-  border-top-left-radius: 10px;
-}
+
+
+
 
 /* smooth circular flares, not square tabs */
 .nav-section { gap: 14px; }
-.nav-item.active::before,
-.nav-item.active::after {
-  display: block !important;
-  content: "";
-  position: absolute;
-  right: -8px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fffdf8;
-  pointer-events: none;
-}
-.nav-item.active::before {
-  top: -8px;
-  border-radius: 50%;
-}
-.nav-item.active::after {
-  bottom: -8px;
-  border-radius: 50%;
-}
+
+
+
 
 /* final: open white center, rounded inset corners */
 .nav-section { gap: 10px; }
-.nav-item.active::before,
-.nav-item.active::after {
-  display: block !important;
-  right: 0;
-  width: 12px;
-  height: 12px;
-  border-radius: 0;
-  background: #c3e4fb;
-}
-.nav-item.active::before {
-  top: 0;
-  border-bottom-left-radius: 12px;
-}
-.nav-item.active::after {
-  bottom: 0;
-  border-top-left-radius: 12px;
-}
+
+
+
 
 /* opaque clipboard capture card */
 .capture-card {
