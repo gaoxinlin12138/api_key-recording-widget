@@ -370,6 +370,9 @@ python app.py --no-browser
 python -m unittest discover -s tests -v
 ```
 
+测试会在源码模式下起一个真实的本地 HTTP 服务（随机端口 + 临时数据库），
+覆盖路由、CSRF/Host 校验、备份恢复与错误码。**CI 在打包之前强制执行这一步，测试不过就不会出包。**
+
 目录结构：
 
 ```text
@@ -396,6 +399,7 @@ assets/
   app.ico               打包图标
 tests/
   test_core.py          解析、片段、存储、迁移、适配器测试
+  test_server.py        HTTP 层：路由、鉴权、备份恢复、错误码
 docs/                   截图
 data/                   运行时数据（已 gitignore）
 api_key_ledger.spec         文件夹式 PyInstaller 配置

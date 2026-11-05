@@ -44,6 +44,10 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-build.txt
 
+      - name: Run tests
+        shell: pwsh
+        run: python -m unittest discover -s tests -v
+
       - name: Build folder-style app
         shell: pwsh
         run: |
